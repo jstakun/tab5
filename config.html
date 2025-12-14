@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glucose Monitoring Configuration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .form-container {
+            background: #ffffff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .form-container h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .form-container h3 {
+            text-align: center;
+            margin: 15px;
+            color: #A0A0A0;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .form-group input, 
+        .form-group select {
+            width: 95%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .form-group input[type="number"]::-webkit-inner-spin-button, 
+        .form-group input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .form-group .small-text {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .form-container button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007BFF;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .form-container button:hover {
+            background-color: #0056b3;
+        }
+        
+    </style>
+    <script> 
+        function validateForm(event) {
+            const fields = [
+                'ssid', 'password', 'api-endpoint', 'api-token', 'emergencyMin', 'min', 'max', 'emergencyMax',
+                'locale', 'timezone', 'beeperStartTime', 'beeperEndTime', 'oldData', 'oldDataEmergency'
+            ];
+
+            let isValid = true;
+
+            fields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (!field.value.trim()) {
+                    alert(`The "${fieldId}" field cannot be empty.`);
+                    isValid = false;
+                    event.preventDefault();
+                }
+            });
+
+            const emergencyMinField = document.getElementById('emergencyMin');
+            const minField = document.getElementById('min');
+            const maxField = document.getElementById('max');
+            const emergencyMaxField = document.getElementById('emergencyMax');
+            const startTimeField = document.getElementById('beeperStartTime');
+            const endTimeField = document.getElementById('beeperEndTime');
+            const timezoneField = document.getElementById('timezone');
+
+            const emergencyMinValue = parseInt(emergencyMinField.value, 10);
+            const minValue = parseInt(minField.value, 10);
+            const maxValue = parseInt(maxField.value, 10);
+            const emergencyMaxValue = parseInt(emergencyMaxField.value, 10);
+
+            if (emergencyMinValue <= 30) {
+                alert('The "Emergency Min" value must be greater than 30.');
+                isValid = false;
+                event.preventDefault();
+            }
+
+            if (minValue <= emergencyMinValue) {
+                alert('The "Min" value must be greater than the "Emergency Min" value.');
+                isValid = false;
+                event.preventDefault();
+            }
+
+            if (maxValue <= minValue) {
+                alert('The "Max" value must be greater than the "Min" value.');
+                isValid = false;
+                event.preventDefault();
+            }
+
+            if (emergencyMaxValue <= maxValue) {
+                alert('The "Emergency Max" value must be greater than the "Max" value.');
+                isValid = false;
+                event.preventDefault();
+            }
+
+            if (maxValue <= 100) {
+                alert('The "Max" value must be greater than 100.');
+                isValid = false;
+                event.preventDefault();
+            }
+
+            const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+
+            if (!timeRegex.test(startTimeField.value)) {
+                alert('Invalid format for Beeper Start Time. Please use HH:MM:SS.');
+                isValid = false;
+                event.preventDefault();
+            }
+
+            if (!timeRegex.test(endTimeField.value)) {
+                alert('Invalid format for Beeper End Time. Please use HH:MM:SS.');
+                isValid = false;
+                event.preventDefault();
+            }
+
+            const timezoneRegex = /^([+-])([0-9]|0[0-9]|1[0-2]):([0-5][0-9])$/;
+            const timezone = timezoneField.value;
+            const match = timezone.match(timezoneRegex);
+
+            if (!match) {
+                alert('The "Timezone" value must be between -12:00 and 12:00.');
+                isValid = false
+                event.preventDefault();
+            }
+
+            const hours = parseInt(match[2], 10);
+            const minutes = parseInt(match[3], 10);
+            if (hours > 12 || (hours === 12 && minutes > 0)) {
+                alert('The "Timezone" value must be between -12:00 and 12:00.');
+                isValid = false;
+                event.preventDefault();
+            }
+
+            return isValid;
+        }
+    </script>
+</head>
+<body>
+    <div class="form-container">
+        <h1>Glucose Monitoring Configuration</h1>
+        <form onsubmit="validateForm(event)" method="post" action="/config">
+            
+            <h3>WiFi Settings</h3>
+            
+            <div class="form-group">
+                <label for="ssid">Wifi SSID</label>
+                <input type="text" id="ssid" name="ssid" value="" placeholder="Your WiFi network SSID" autofocus required>
+            </div>
+
+            <div class="form-group">
+                <label for="wifi_password">Wifi Password</label>
+                <input type="password" id="wifi_password" name="wifi_password" value="" placeholder="Your WiFi network Password" required>
+            </div>
+
+            <h3>API Settings</h3>
+            
+            <div class="form-group">
+                <label for="api-endpoint">API Endpoint URL</label>
+                <input type="text" id="api-endpoint" name="api-endpoint" value="https://www.gms-world.net/s/diabetes/1/api/v1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="api-token">API Token</label>
+                <input type="text" id="api-token" name="api-token" value="" placeholder="Your API Token" required>
+            </div>
+            
+            <h3>Glucose Level Settings</h3>
+
+            <div class="form-group">
+                <label for="emergencyMin">Glucose low Emergency level</label>
+                <input type="number" id="emergencyMin" name="emergencyMin" value="50" required>
+            </div>
+
+            <div class="form-group">
+                <label for="min">Glucose minimal level</label>
+                <input type="number" id="min" name="min" value="75" required>
+            </div>
+
+            <div class="form-group">
+                <label for="max">Glucose maximum level</label>
+                <input type="number" id="max" name="max" value="180" required>
+            </div>
+
+            <div class="form-group">
+                <label for="emergencyMax">Glucose high Emergency level</label>
+                <input type="number" id="emergencyMax" name="emergencyMax" value="250" required>
+            </div>
+
+            <h3>Locale and Timezone Settings</h3>
+
+            <div class="form-group">
+                <label for="locale">Locale</label>
+                <input type="text" id="locale" name="locale" value="" required>
+            </div>
+
+            <div class="form-group">
+                <label for="timezone">GMT timezone difference (format +/-HH:MM, from -12:00 to +12:00)</label>
+                <input type="text" id="timezone" name="timezone" value="+02:00" placeholder="+02:00" required>
+            </div>
+            
+            <h3>Beeper Settings</h3>
+
+            <div class="form-group">
+                <label for="beeper">Use Beeper</label>
+                <select id="beeper" name="beeper">
+                    <option value="1">Enabled</option>
+                    <option value="0" selected>Disabled</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="beeperStartTime">Beeper Start Time</label>
+                <input type="time" id="beeperStartTime" name="beeperStartTime" value="00:00:00" required>
+            </div>
+
+            <div class="form-group">
+                <label for="beeperEndTime">Beeper End Time</label>
+                <input type="time" id="beeperEndTime" name="beeperEndTime" value="23:59:59" required>
+            </div>
+
+            <input type="hidden" id="oldData" name="oldData" value="15">
+            
+            <!--div class="form-group">
+                <label for="oldData">Old Data (min)</label>
+                <input type="number" id="oldData" name="oldData" value="15">
+            </div-->
+
+            <input type="hidden" id="oldDataEmergenc" name="oldDataEmergenc" value="1440">
+
+            <!--div class="form-group">
+                <label for="oldDataEmergenc">Old Data Emergency (min)</label>
+                <input type="number" id="oldDataEmergenc" name="oldDataEmergenc" value="1440">
+            </div-->
+            <button type="submit">Save Configuration</button>
+        </form>
+    </div>
+    <script>
+        const getLanguage = () => navigator.userLanguage || (navigator.languages && navigator.languages.length && navigator.languages[0]) || navigator.language || navigator.browserLanguage || navigator.systemLanguage || 'en-US';
+
+        document.getElementById('locale').value = getLanguage();
+    </script>
+</body>
+</html>
+
