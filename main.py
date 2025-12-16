@@ -492,35 +492,32 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     M5.Display.setTextSize(1.5)
     f = M5.Display.fontHeight()
     w = M5.Display.textWidth(tempStr)
+    y = int(y+(SCREEN_HEIGHT-y-f)/2) + 5
+    fy = int(y+(SCREEN_HEIGHT-y)/2)-20 - 5
     if "tempStr" not in prevStr or prevStr["tempStr"] != tempStr:
-       printText(tempStr, 20, int(y+(SCREEN_HEIGHT-y-f)/2), rotate=rotate)
-       printText("C", 20+w, int(y+(SCREEN_HEIGHT-y)/2)-20, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
+       printText(tempStr, 20, y, rotate=rotate)
+       printText("C", 20+w, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
     prevStr["tempStr"] = tempStr
 
     #draw pressureStr
     M5.Display.setFont(M5.Display.FONTS.DejaVu72)
-    M5.Display.setTextSize(1.5)
-    f = M5.Display.fontHeight()
     w = M5.Display.textWidth(pressureStr)
     drawPressure = False
     if "pressureStr" in prevStr and prevStr["pressureStr"] != pressureStr:
        fx = int((SCREEN_WIDTH-M5.Display.textWidth(prevStr["pressureStr"]))/2)-60
-       fy = int(y+(SCREEN_HEIGHT-y-f)/2)
-       M5.Display.fillRect(fx, fy, M5.Display.textWidth(prevStr["pressureStr"]), f, M5.Display.COLOR.BLACK)
+       M5.Display.fillRect(fx, y, M5.Display.textWidth(prevStr["pressureStr"]), f, M5.Display.COLOR.BLACK)
        drawPressure = True
     if "pressureStr" not in prevStr or drawPressure == True:   
-       printText(pressureStr, int((SCREEN_WIDTH-w)/2)-60, int(y+(SCREEN_HEIGHT-y-f)/2), rotate=rotate)
-       printText("hPa", int((SCREEN_WIDTH-w)/2)-60+w, int(y+(SCREEN_HEIGHT-y)/2)-20, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
+       printText(pressureStr, int((SCREEN_WIDTH-w)/2)-60, y, rotate=rotate)
+       printText("hPa", int((SCREEN_WIDTH-w)/2)-60+w, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
     prevStr["pressureStr"] = pressureStr
 
     #draw humidityStr
     M5.Display.setFont(M5.Display.FONTS.DejaVu72)
-    M5.Display.setTextSize(1.5)
-    f = M5.Display.fontHeight()
     w = M5.Display.textWidth(humidityStr)
     if "humidityStr" not in prevStr or prevStr["humidityStr"] != humidityStr:
-       printText(humidityStr, SCREEN_WIDTH-w-20-50, int(y+(SCREEN_HEIGHT-y-f)/2), rotate=rotate)
-       printText("%", SCREEN_WIDTH-20-50, int(y+(SCREEN_HEIGHT-y)/2)-20, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
+       printText(humidityStr, SCREEN_WIDTH-w-20-50, y, rotate=rotate)
+       printText("%", SCREEN_WIDTH-20-50, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
     prevStr["humidityStr"] = humidityStr
 
     if firstRun == True: firstRun = False
