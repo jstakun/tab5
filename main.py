@@ -369,6 +369,9 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     elif not tooOld and directionStr.endswith('Down') and sgv-10<=MIN: arrowColor = M5.Display.COLOR.RED
     else: arrowColor = backgroundColor  
 
+    tempStr = "--"
+    pressureStr = "---"
+    humidityStr = "--"
     try:
       if envUnit != None:
         tempStr = "%.0f" % envUnit.read_temperature()

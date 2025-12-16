@@ -1,5 +1,7 @@
 # Glucose level monitor for M5Stack Tab5 device
 
+<img width="240" height="120" src="https://raw.githubusercontent.com/jstakun/tab5/master/images/img1.jpg">
+
 With this application you can visualize on M5Stack Tab5 devices glucose level readings stored in Nightscout API cloud database.
 
 In order to run this application you must first copy [main.py](main.py), [ap.py](app.py), config.html and success.html to the M5Stack Tab5 device. If you use ampy you can execute [copyAll.sh](copyAll.sh) script.
