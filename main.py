@@ -379,7 +379,10 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
       #saveError(e)
 
     sgvDiff = 0
-    if len(response) > 1: sgvDiff = sgv - response[1]['sgv']
+    if len(response) > 1: 
+       sgvDiff = sgv - response[1]['sgv']
+       if sgvDiff >= 100: sgvDiff = 99
+       elif sgvDiff <= -100: sgvDiff = -99
     sgvDiffStr = str(sgvDiff)
     if sgvDiff > 0: sgvDiffStr = "+" + sgvDiffStr
     sgvDiffStr = "(" + sgvDiffStr + ")"
@@ -442,7 +445,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     if "sgvDiffStr" in prevStr:
        fx = SCREEN_WIDTH - 20 - (2*radius) - gap - M5.Display.textWidth(prevStr["sgvDiffStr"])
        if prevStr["sgvDiffStr"] != sgvDiffStr:
-         M5.Display.fillRect(fx, y, M5.Display.textWidth(prevStr["sgvDiffStr"]), f, M5.Display.COLOR.BLACK)
+         M5.Display.fillRect(fx, y, M5.Display.textWidth(prevStr["sgvDiffStr"]), f+5, M5.Display.COLOR.BLACK)
          drawSgvDiff = True
     if drawSgvDiff == True or "sgvDiffStr" not in prevStr:  
        printText(sgvDiffStr, x, y+20, textColor=textColor, rotate=rotate)
@@ -669,6 +672,7 @@ def touchPadCallback(t):
         # Continuously update the "last known" position while dragging
         last_x = curr_x
         last_y = curr_y
+        onTouchTap()
 
     # === STATE 2: RELEASED (Gesture End) ===
     elif count == 0 and was_pressed:
@@ -695,7 +699,7 @@ def touchPadCallback(t):
             onTouchSwipe(t)    
         else:
             print("--- TAP (No Swipe) ---")
-            onTouchTap(t)
+            onTouchTap(saveConfig=True)
 
 
 def watchdogCallback(t):
@@ -716,18 +720,20 @@ def localtimeCallback(t):
   if shuttingDown == False:
     printLocaltime(mode, secondsDiff, silent=True)
 
-def onTouchTap(t):
+def onTouchTap(saveConfig=False):
   global emergency, emergencyPause
   if emergency == True:
     emergency = False
     emergencyPause = utime.time() + EMERGENCY_PAUSE_INTERVAL
   else:   
     global brightness, config
-    brightness += 32
-    if brightness > 255: brightness = 32
+    brightness += 4
+    if brightness > 255: brightness = 1
     M5.Widgets.setBrightness(brightness)
     config["brightness"] = brightness
-    ap.saveConfigFile(config)
+    print("Setting brightness " + str(brightness))
+    if saveConfig == True:
+      ap.saveConfigFile(config)
 
 def onTouchSwipe(t):
   global shuttingDown, mode, config
