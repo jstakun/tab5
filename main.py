@@ -204,6 +204,8 @@ def printText(msg, x, y, font=None, backgroundColor=M5.Display.COLOR.BLACK, text
     
   if font != None:       
     M5.Display.setFont(font)
+
+  #TODO set different text color depending on screen brightness  
     
   M5.Display.setTextColor(textColor, backgroundColor)
     
@@ -278,7 +280,7 @@ def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=Fals
         rotate = 3
       M5.Display.setFont(M5.Display.FONTS.DejaVu72)  
       M5.Display.setTextSize(3)
-      w = M5.Display.textWidth(timeStr)  
+      w = M5.Display.textWidth(timeStr)
       printText(timeStr, int((SCREEN_WIDTH-w)/2), 10, silent=silent, rotate=rotate)  
       M5.Display.setTextSize(1)
       if useLock == False and locked == True:
@@ -732,7 +734,7 @@ def localtimeCallback(t):
     printLocaltime(mode, secondsDiff, silent=True)
 
 def onTouchTap(saveConfig=False):
-  global emergency, emergencyPause #, response, DARKGREY, ORANGE, RED, DARKGREEN
+  global emergency, emergencyPause
   if emergency == True:
     emergency = False
     emergencyPause = utime.time() + EMERGENCY_PAUSE_INTERVAL
@@ -743,13 +745,6 @@ def onTouchTap(saveConfig=False):
     M5.Widgets.setBrightness(brightness)
     config["brightness"] = brightness
     print("Setting brightness " + str(brightness))
-    #n = brightness / 2
-    #DARKGREY = int((80 + (n * 1.37795)) * 65793)
-    #ORANGE = int(10027008 + ((92 +(n * 0.4803)) * 256))
-    #RED = int((128 + n) * 65536)
-    #DARKGREEN = int((64+(n * 1.5039)) * 256) 
-    #if response != None: 
-    #  drawScreen(response[0])
     if saveConfig == True:
       ap.saveConfigFile(config)
 
