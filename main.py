@@ -18,7 +18,7 @@ import ujson
 from unit import ENVUnit, RGBUnit
 
 EMERGENCY_PAUSE_INTERVAL = 1800  #sec = 30 mins
-MODES = ["full_elapsed", "full_date", "full_battery", "basic", "flip_full_elapsed", "flip_full_date", "flip_full_battery", "chart", "flip_chart"]
+MODES = ["full_all", "full_date", "full_battery", "basic", "flip_full_all", "flip_full_date", "flip_full_battery", "chart", "flip_chart"]
 SGVDICT_FILE = 'sgvdict.txt'
 RESPONSE_FILE = 'response.json'
 BACKEND_TIMEOUT_MS = 55000 #max 60000
@@ -38,7 +38,7 @@ DARKGREEN = 16384 # 0 x 65536 + 64 x 256 + 0
 drawScreenLock = _thread.allocate_lock()
 
 def getBatteryLevel():
-  return 100 #M5.Power.getBatteryLevel() no battery present 
+  return 100 #TODO call M5.Power.getBatteryLevel()
 
 def isOlderThan(date_str, mins, now_seconds, print_time=False): 
   the_date = getDateTuple(date_str)
@@ -302,13 +302,11 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
 
   if locked == True: 
 
-    currentMode = mode
-
     if firstRun == True:
       clear = True
 
     s = utime.time()
-    print('Printing screen in ' + MODES[currentMode] + ' mode')
+    print('Printing screen in ' + MODES[mode] + ' mode')
   
     sgv = newestEntry['sgv']
     sgvStr = str(sgv)
@@ -338,13 +336,10 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     elif sgv > EMERGENCY_MAX: backgroundColor=ORANGE; emergencyNew=(utime.time() > emergencyPause and not tooOld)  
   
     #battery level emergency
-    #batteryLevel = getBatteryLevel()
-    #uptime = utime.time() - startTime  
-    #if (batteryLevel < 10 and batteryLevel > 0 and uptime > 300) and (utime.time() > emergencyPause) and not M5.Power.isCharging(): 
-    #  emergencyNew = True
-    #  if currentMode < 4 or currentMode == 7: currentMode = 2
-    #  else: currentMode = 6
-    #  clear = True
+    batteryLevel = getBatteryLevel()
+    uptime = utime.time() - startTime  
+    if (batteryLevel < 10 and batteryLevel > 0 and uptime > 300) and (utime.time() > emergencyPause) and not M5.Power.isCharging(): 
+      emergencyNew = True
 
     #old data emergency
     if utime.time() > emergencyPause and isOlderThan(sgvDateStr, OLD_DATA_EMERGENCY, now):
@@ -358,16 +353,8 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
       rgbUnit.set_color(1, backgroundColor)
       rgbUnit.set_color(2, M5.Display.COLOR.BLACK)
 
-    #if emergency change to one of full modes 
-    if emergency == True and (currentMode == 3 or currentMode == 7): currentMode = 0
-  
-    if noNetwork == False and "ago" in newestEntry and (currentMode == 0 or currentMode == 4): 
+    if noNetwork == False and "ago" in newestEntry: 
       dateStr = newestEntry['ago']
-    #elif currentMode == 2 or currentMode == 6:
-    #  if batteryLevel >= 0:
-    #   dateStr = "Battery: " + str(batteryLevel) + "%"
-    #  else: 
-    #   dateStr = "Battery level unknown"
     else:   
       dateStr = sgvDateStr.replace("T", " ")[:-3] #remove seconds
   
@@ -412,25 +399,33 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     #draw current time
     printLocaltime(mode, secondsDiff, useLock=True)  
  
-    #draw battery - no battery present
-    #M5.Display.setFont(M5.Display.FONTS.DejaVu24)
-    #textColor = batteryTextColor
-    #w = M5.Display.textWidth(batteryStr)
-    #printText(batteryStr, int(SCREEN_WIDTH - w - 10), 12, font=M5.Display.FONTS.DejaVu24, rotate=rotate) 
-    
-    #draw sgv
     M5.Display.setFont(M5.Display.FONTS.DejaVu72)  
     M5.Display.setTextSize(4)
     x = 10
     w = M5.Display.textWidth(sgvStr) 
     f = M5.Display.fontHeight()
     y = int((SCREEN_HEIGHT - f) / 2) + 30
+    
+    #draw battery level 
+    if "batteryLevel" not in prevStr or prevStr["batteryLevel"] != batteryLevel:
+       b = y-60
+       nb = int(b/100*batteryLevel)
+       if nb<20: nb=20
+       M5.Display.fillRect(SCREEN_WIDTH-55, 20, 25, b, DARKGREY)
+       if batteryLevel <= 20: color=RED
+       elif batteryLevel <= 50: color=ORANGE
+       else: color=DARKGREEN 
+       M5.Display.fillRect(SCREEN_WIDTH-55, 20+b-nb, 25, nb, color)
+    prevStr["batteryLevel"] = batteryLevel
+ 
     if clear == True:
        M5.Display.drawLine(10, y, SCREEN_WIDTH-10, y, DARKGREY)
+    
+    #draw sgv
     y += 30
     drawSgv = False
-    if ("sgvStr" in prevStr and prevStr["sgvStr"] != sgvStr) or ("sgvStrColor" in prevStr and prevStr["sgvStrColor"] != str(backgroundColor)):
-       M5.Display.fillRect(x, y, M5.Display.textWidth("888"), f, M5.Display.COLOR.BLACK)
+    if ("sgvStr" in prevStr and prevStr["sgvStr"] != sgvStr) or ("sgvStrColor" in prevStr and prevStr["sgvStrColor"] != backgroundColor):
+       M5.Display.fillRect(x, y, M5.Display.textWidth("8888"), f, M5.Display.COLOR.BLACK)
        drawSgv = True
     if drawSgv == True or "sgvStr" not in prevStr:  
        printText(sgvStr, x, y, textColor=backgroundColor, rotate=rotate)
@@ -442,7 +437,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        printText(sgvLabelStr, x+w, ly, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
     
     prevStr["sgvStr"] = sgvStr
-    prevStr["sgvStrColor"] = str(backgroundColor)
+    prevStr["sgvStrColor"] = backgroundColor
 
     #draw sgv diff
     radius = 60
@@ -470,7 +465,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     x += w + gap + radius
     y += int(f / 2) 
 
-    if ("directionStr" not in directionStr or prevStr["directionStr"] != directionStr) and ("directionStrColor" not in directionStr or prevStr["directionStrColor"] != str(arrowColor)):     
+    if ("directionStr" not in prevStr or prevStr["directionStr"] != directionStr) and ("directionStrColor" not in prevStr or prevStr["directionStrColor"] != arrowColor):     
        if directionStr == 'DoubleUp': drawDirectionV2(x, y+20, radius=radius, tri_color=arrowColor, ydiff=16)
        elif directionStr == 'DoubleDown': drawDirectionV2(x, y+20, radius=radius, angle_degrees=180, tri_color=arrowColor, ydiff=16) 
        elif directionStr == 'SingleUp': drawDirectionV2(x, y+20, radius=radius, tri_color=arrowColor)
@@ -479,7 +474,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        elif directionStr == 'FortyFiveUp': drawDirectionV2(x, y+20, radius=radius, angle_degrees=45, tri_color=arrowColor)
        elif directionStr == 'FortyFiveDown': drawDirectionV2(x, y+20, radius=radius, angle_degrees=135, tri_color=arrowColor)
     prevStr["directionStr"] = directionStr
-    prevStr["directionStrColor"] = str(arrowColor)
+    prevStr["directionStrColor"] = arrowColor
 
     #draw dateStr
     M5.Display.setFont(M5.Display.FONTS.DejaVu40)
@@ -650,10 +645,8 @@ def accelCallback(t):
   acceleration = M5.Imu.getAccel()
   #print("Current acceleration: " + str(acceleration))
   hasResponse = (response != None)
-  if hasResponse and acceleration[0] > 1.0 and mode in range(0,3): mode += 4; drawScreen(response[0]) #change to 'Flip mode' #4,5,6
-  elif hasResponse and acceleration[0] < -1.0 and mode in range(4,7): mode -= 4; drawScreen(response[0]) #change to 'Normal mode' #0,1,2
-  elif hasResponse and acceleration[0] > 1.0 and mode == 7: mode = 8; drawScreen(response[0])
-  elif hasResponse and acceleration[0] < -1.0 and mode == 8: mode = 7; drawScreen(response[0])
+  if hasResponse and acceleration[0] > 1.0 and mode == 0: mode = 4; drawScreen(response[0]) #flip 
+  elif hasResponse and acceleration[0] < -1.0 and mode == 4: mode = 0; drawScreen(response[0]) #normal 
 
 # --- State Variables ---
 was_pressed = False
