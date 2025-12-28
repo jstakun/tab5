@@ -40,7 +40,7 @@ drawScreenLock = _thread.allocate_lock()
 def getBatteryLevel():
   v = M5.Power.getBatteryVoltage()
   if v > 4250 or v <= 0:
-    return 100
+    return 101 #no battery present
   else:
     return M5.Power.getBatteryLevel()
 
@@ -393,7 +393,6 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     rotate = 1
     if mode >= 4:
       rotate = 3
-    
     M5.Display.setRotation(rotate)  
 
     if clear == True:
@@ -411,16 +410,17 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     y = int((SCREEN_HEIGHT - f) / 2) + 30
     
     #draw battery level 
-    if "batteryLevel" not in prevStr or prevStr["batteryLevel"] != batteryLevel:
-       b = y-60
-       nb = int(b/100*batteryLevel)
-       if nb<20: nb=20
-       M5.Display.fillRect(SCREEN_WIDTH-55, 20, 25, b, DARKGREY)
-       if batteryLevel <= 20: color=RED
-       elif batteryLevel <= 50: color=ORANGE
-       else: color=DARKGREEN 
-       M5.Display.fillRect(SCREEN_WIDTH-55, 20+b-nb, 25, nb, color)
-    prevStr["batteryLevel"] = batteryLevel
+    if batteryLevel >= 0 and batteryLevel <= 100:
+      if "batteryLevel" not in prevStr or prevStr["batteryLevel"] != batteryLevel:
+         b = y-60
+         nb = int(b/100*batteryLevel)
+         #if nb<20: nb=20
+         M5.Display.fillRect(SCREEN_WIDTH-55, 20, 25, b, DARKGREY)
+         if batteryLevel <= 20: color=RED
+         elif batteryLevel <= 50: color=ORANGE
+         else: color=DARKGREEN 
+         M5.Display.fillRect(SCREEN_WIDTH-55, 20+b-nb, 25, nb, color)
+      prevStr["batteryLevel"] = batteryLevel
  
     if clear == True:
        M5.Display.drawLine(10, y, SCREEN_WIDTH-10, y, DARKGREY)
