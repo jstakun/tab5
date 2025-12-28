@@ -38,7 +38,11 @@ DARKGREEN = 16384 # 0 x 65536 + 64 x 256 + 0
 drawScreenLock = _thread.allocate_lock()
 
 def getBatteryLevel():
-  return 100 #TODO call M5.Power.getBatteryLevel()
+  v = M5.Power.getBatteryVoltage()
+  if v > 4250 or v <= 0:
+    return 100
+  else:
+    return M5.Power.getBatteryLevel()
 
 def isOlderThan(date_str, mins, now_seconds, print_time=False): 
   the_date = getDateTuple(date_str)
@@ -465,7 +469,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     x += w + gap + radius
     y += int(f / 2) 
 
-    if ("directionStr" not in prevStr or prevStr["directionStr"] != directionStr) and ("directionStrColor" not in prevStr or prevStr["directionStrColor"] != arrowColor):     
+    if "directionStr" not in prevStr or prevStr["directionStr"] != directionStr or "directionStrColor" not in prevStr or prevStr["directionStrColor"] != arrowColor:     
        if directionStr == 'DoubleUp': drawDirectionV2(x, y+20, radius=radius, tri_color=arrowColor, ydiff=16)
        elif directionStr == 'DoubleDown': drawDirectionV2(x, y+20, radius=radius, angle_degrees=180, tri_color=arrowColor, ydiff=16) 
        elif directionStr == 'SingleUp': drawDirectionV2(x, y+20, radius=radius, tri_color=arrowColor)
@@ -525,8 +529,8 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     M5.Display.setFont(M5.Display.FONTS.DejaVu72)
     w = M5.Display.textWidth(humidityStr)
     if "humidityStr" not in prevStr or prevStr["humidityStr"] != humidityStr:
-       printText(humidityStr, SCREEN_WIDTH-w-20-50, y, rotate=rotate)
-       printText("%", SCREEN_WIDTH-20-50, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
+       printText(humidityStr, SCREEN_WIDTH-w-20-90, y, rotate=rotate)
+       printText("%h", SCREEN_WIDTH-20-90, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
     prevStr["humidityStr"] = humidityStr
 
     if firstRun == True: firstRun = False
