@@ -39,10 +39,14 @@ drawScreenLock = _thread.allocate_lock()
 
 def getBatteryLevel():
   v = M5.Power.getBatteryVoltage()
-  if v > 4250 or v <= 0:
-    return 101 #no battery present
+  l = M5.Power.getBatteryLevel()
+  ic = M5.Power.isCharging()
+  c = M5.Power.getBatteryCurrent()
+  print(f"Voltage: {v}mV, Level: {l}%, Charging: {ic}, Current: {c}")
+  if 5800 < v < 8500 and abs(c) > 10:
+    return l
   else:
-    return M5.Power.getBatteryLevel()
+    return 101 #no battery present
 
 def isOlderThan(date_str, mins, now_seconds, print_time=False): 
   the_date = getDateTuple(date_str)
@@ -517,8 +521,9 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     w = M5.Display.textWidth(pressureStr)
     drawPressure = False
     if "pressureStr" in prevStr and prevStr["pressureStr"] != pressureStr:
-       fx = int((SCREEN_WIDTH-M5.Display.textWidth(prevStr["pressureStr"]))/2)-60
-       M5.Display.fillRect(fx, y, M5.Display.textWidth(prevStr["pressureStr"]), f, M5.Display.COLOR.BLACK)
+       prevPressureStr = prevStr["pressureStr"] + "hpa"
+       fx = int((SCREEN_WIDTH-M5.Display.textWidth(prevPressureStr))/2)-60
+       M5.Display.fillRect(fx, y, M5.Display.textWidth(prevPressureStr), f, M5.Display.COLOR.BLACK)
        drawPressure = True
     if "pressureStr" not in prevStr or drawPressure == True:   
        printText(pressureStr, int((SCREEN_WIDTH-w)/2)-60, y, rotate=rotate)
@@ -547,7 +552,7 @@ def backendMonitor():
   lastid = -1
   while True:
     try:
-      print('Battery level: ' + str(getBatteryLevel()) + '%')
+      #print('Battery level: ' + str(getBatteryLevel()) + '%')
       printTime((utime.time() - startTime), prefix='Uptime is')
       print("Calling backend with timeout " + str(BACKEND_TIMEOUT_MS) + " ms ...")
       s = utime.time()
@@ -575,7 +580,7 @@ def backendMonitor():
       lastid = -1
       sys.print_exception(e)
       #saveError(e)
-      print('Battery level: ' + str(getBatteryLevel()) + '%')
+      #print('Battery level: ' + str(getBatteryLevel()) + '%')
       if response == None: readResponseFile()
       try: 
         if response != None and len(response) >= 1: 
