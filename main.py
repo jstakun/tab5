@@ -27,6 +27,8 @@ YEAR = 2025
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 MIN_SWIPE_DIST = 250  # Minimum distance in pixels to count as a swipe
+SHOW_SECONDS = False
+RESET_BRIGHTNESS_AT_STARTUP = True
 
 #M5.Display.COLOR
 #Decimal = (Red × 65536) + (Green × 256) + Blue
@@ -267,6 +269,7 @@ def drawDirectionV2(cx, cy, radius=48, angle_degrees=0, gap=16, circle_color=M5.
       M5.Lcd.fillTriangle(x1, y1+ydiff, x2, y2+ydiff, x3, y3+ydiff, tri_color)
 
 def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=False):
+  global prevStr
   try: 
     if localtime == None:
       now_datetime = getRtcDatetime()
@@ -276,23 +279,30 @@ def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=Fals
     if (localtime[3] < 10): h = "0" + h   
     m = str(localtime[4])
     if (localtime[4] < 10): m = "0" + m
-    s = str(localtime[5])
-    if (localtime[5] < 10): s = "0" + s
-    timeStr = h + ":" + m + ":" + s
-    locked = False 
-    if useLock == False and drawScreenLock.locked() == False:
-      locked = drawScreenLock.acquire()
-    if locked == True or useLock == True:
-      rotate = 1
-      if mode >= 4:
-        rotate = 3
-      M5.Display.setFont(M5.Display.FONTS.DejaVu72)  
-      M5.Display.setTextSize(3)
-      w = M5.Display.textWidth(timeStr)
-      printText(timeStr, int((SCREEN_WIDTH-w)/2), 10, silent=silent, rotate=rotate)  
-      M5.Display.setTextSize(1)
-      if useLock == False and locked == True:
-        drawScreenLock.release()
+    timeStr = h + ":" + m
+    if SHOW_SECONDS == True: 
+      s = str(localtime[5])
+      if (localtime[5] < 10): s = "0" + s
+      timeStr += ":" + s
+    if "timeStr" not in prevStr or prevStr["timeStr"] != timeStr:
+      locked = False 
+      if useLock == False and drawScreenLock.locked() == False:
+        locked = drawScreenLock.acquire()
+      if locked == True or useLock == True:
+        rotate = 1
+        if mode >= 4: rotate = 3
+        M5.Display.setFont(M5.Display.FONTS.DejaVu72)  
+        M5.Display.setTextSize(3)
+        w = M5.Display.textWidth(timeStr)
+        if "timeStr" in prevStr and len(prevStr["timeStr"]) > len(timeStr):
+          f = M5.Display.fontHeight()
+          wp = M5.Display.textWidth("00:00:00")
+          M5.Display.fillRect(int((SCREEN_WIDTH-wp)/2), 10, wp, f, M5.Display.COLOR.BLACK)
+        printText(timeStr, int((SCREEN_WIDTH-w)/2), 10, silent=silent, rotate=rotate)  
+        M5.Display.setTextSize(1)
+        if useLock == False and locked == True:
+          drawScreenLock.release()
+      prevStr["timeStr"] = timeStr    
   except Exception as e:
     sys.print_exception(e)
     saveError(e)
@@ -653,9 +663,12 @@ def accelCallback(t):
   global mode, response
   acceleration = M5.Imu.getAccel()
   #print("Current acceleration: " + str(acceleration))
-  hasResponse = (response != None)
-  if hasResponse and acceleration[0] > 1.0 and mode == 0: mode = 4; drawScreen(response[0]) #flip 
-  elif hasResponse and acceleration[0] < -1.0 and mode == 4: mode = 0; drawScreen(response[0]) #normal 
+  if acceleration[0] > 1.0 and mode == 0: 
+    mode = 4 #flip
+    if response != None: drawScreen(response[0]) 
+  elif acceleration[0] < -1.0 and mode == 4: 
+    mode = 0 #normal 
+    if response != None: drawScreen(response[0])  
 
 # --- State Variables ---
 was_pressed = False
@@ -665,7 +678,7 @@ last_x = 0
 last_y = 0
 
 def touchPadCallback(t):
-    global was_pressed, start_x, start_y, last_x, last_y
+    global was_pressed, start_x, start_y, last_x, last_y, SHOW_SECONDS
     
     M5.update()
     
@@ -713,8 +726,12 @@ def touchPadCallback(t):
                 print("^^^ SWIPE UP ^^^")
             onTouchSwipe(t)    
         else:
-            print("--- TAP (No Swipe) ---")
-            onTouchTap(saveConfig=True)
+            if (dx < 30 and dy < 30) or (dx > SCREEN_WIDTH-30 and dy > SCREEN_HEIGHT-30):
+               SHOW_SECONDS = not SHOW_SECONDS
+               print("--- TAP (Show Seconds " + str(SHOW_SECONDS) + ") ---")
+            else:
+               print("--- TAP (No Swipe) ---")
+               onTouchTap(saveConfig=True)
 
 
 def watchdogCallback(t):
@@ -752,8 +769,7 @@ def onTouchTap(saveConfig=False):
 
 def onTouchSwipe(t):
   global shuttingDown, mode, config
-  print('Button B pressed')
-  config[ap.CONFIG] = 0
+  config[ap.CONFIG] = 1 if config[ap.CONFIG] == 0 else 0
   ap.saveConfigFile(config)
   WDT(timeout=1000)
   shuttingDown = True
@@ -763,15 +779,16 @@ def onTouchSwipe(t):
 
 config = ap.readConfigFile()
 
+M5.begin()
+
 mode = 0
-if M5.Imu.getAccel()[0] > 1.0: mode = 4 #flip
+acceleration = M5.Imu.getAccel()
+if acceleration[0] > 1.0: mode = 4 #flip
 
 firstRun = True
 
-M5.begin()
-
 brightness = 1
-#if config != None: brightness = config["brightness"]
+if config != None and RESET_BRIGHTNESS_AT_STARTUP == False: brightness = config["brightness"]
 M5.Widgets.setBrightness(brightness)
 
 printCenteredText("Starting...", mode, backgroundColor=DARKGREY, clear=True)  
@@ -810,6 +827,12 @@ emergencyPause = 0
 shuttingDown = False
 backendResponse = None
 beeperExecuted = False
+
+touchPadTimer = machine.Timer(0)
+touchPadTimer.init(period=100, callback=touchPadCallback)
+
+accelTimer = machine.Timer(3)
+accelTimer.init(period=100, callback=accelCallback)
 
 if config == None or config[ap.CONFIG] == 0:
    printCenteredText("Connect AP ...", mode, backgroundColor=RED, clear=True)
@@ -862,9 +885,6 @@ else:
      WDT(timeout=1000)
      shuttingDown = True
      printCenteredText("Restarting...", mode, backgroundColor=RED, clear=True)
-
-touchPadTimer = machine.Timer(0)
-touchPadTimer.init(period=100, callback=touchPadCallback)
 
 # from here code runs only if application is properly configured
 
@@ -930,9 +950,6 @@ try:
   
   localtimeTimer = machine.Timer(2)
   localtimeTimer.init(period=1000, callback=localtimeCallback)
-
-  accelTimer = machine.Timer(3)
-  accelTimer.init(period=500, callback=accelCallback)
 
   #main method and threads
 
