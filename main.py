@@ -268,7 +268,7 @@ def drawDirectionV2(cx, cy, radius=48, angle_degrees=0, gap=16, circle_color=M5.
       M5.Lcd.fillTriangle(x1, y1-ydiff, x2, y2-ydiff, x3, y3-ydiff, tri_color)
       M5.Lcd.fillTriangle(x1, y1+ydiff, x2, y2+ydiff, x3, y3+ydiff, tri_color)
 
-def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=False):
+def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=False, firstRun=False):
   global prevStr
   try: 
     if localtime == None:
@@ -284,7 +284,7 @@ def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=Fals
       s = str(localtime[5])
       if (localtime[5] < 10): s = "0" + s
       timeStr += ":" + s
-    if "timeStr" not in prevStr or prevStr["timeStr"] != timeStr:
+    if firstRun == False and ("timeStr" not in prevStr or prevStr["timeStr"] != timeStr):
       locked = False 
       if useLock == False and drawScreenLock.locked() == False:
         locked = drawScreenLock.acquire()
@@ -660,15 +660,19 @@ def emergencyMonitor():
       time.sleep(1)
 
 def accelCallback(t):
-  global mode, response
+  global mode, response, config
   acceleration = M5.Imu.getAccel()
   #print("Current acceleration: " + str(acceleration))
   if acceleration[0] > 1.0 and mode == 0: 
     mode = 4 #flip
-    if response != None: drawScreen(response[0]) 
+    if response != None: drawScreen(response[0])
+    config["screen-mode"] = mode
+    ap.saveConfigFile(config) 
   elif acceleration[0] < -1.0 and mode == 4: 
     mode = 0 #normal 
-    if response != None: drawScreen(response[0])  
+    if response != None: drawScreen(response[0])
+    config["screen-mode"] = mode  
+    ap.saveConfigFile(config) 
 
 # --- State Variables ---
 was_pressed = False
@@ -748,9 +752,9 @@ def watchdogCallback(t):
   printCenteredText("Restarting...", mode, backgroundColor=RED, clear=True)
 
 def localtimeCallback(t):
-  global shuttingDown, mode, secondsDiff 
+  global shuttingDown, mode, secondsDiff, firstRun 
   if shuttingDown == False:
-    printLocaltime(mode, secondsDiff, silent=True)
+    printLocaltime(mode, secondsDiff, silent=True, firstRun=firstRun)
 
 def onTouchTap(saveConfig=False):
   global emergency, emergencyPause
@@ -781,9 +785,14 @@ config = ap.readConfigFile()
 
 M5.begin()
 
-mode = 0
+response = None
+
+mode = 0 
+if config != None and "mode" in config:
+   mode = config["screen-mode"]
 acceleration = M5.Imu.getAccel()
 if acceleration[0] > 1.0: mode = 4 #flip
+elif acceleration[0] < -1.0: mode = 0 #normal
 
 firstRun = True
 
@@ -821,7 +830,6 @@ except Exception as e:
 print('Starting ...')
 print('System:', sys.implementation)
 
-response = None
 emergency = False
 emergencyPause = 0
 shuttingDown = False
