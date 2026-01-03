@@ -27,8 +27,10 @@ YEAR = 2025
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 MIN_SWIPE_DIST = 250  # Minimum distance in pixels to count as a swipe
+
 SHOW_SECONDS = False
 RESET_BRIGHTNESS_AT_STARTUP = True
+MUCH_TOO_OLD_DATA = 30 #mins
 
 #M5.Display.COLOR
 #Decimal = (Red × 65536) + (Green × 256) + Blue
@@ -55,7 +57,7 @@ def isOlderThan(date_str, mins, now_seconds, print_time=False):
   the_date_seconds = utime.mktime(the_date)
   #print("Date: " + str(the_date) + " - " + str(the_date_seconds) + ", Now: " + str(now_seconds))
   diff = (now_seconds - the_date_seconds)
-  if print_time == True:
+  if print_time:
      printTime(diff, prefix='Entry read', suffix='ago')
   return (diff > (60 * mins) and getBatteryLevel() >= 5)  
 
@@ -221,7 +223,7 @@ def printText(msg, x, y, font=None, backgroundColor=M5.Display.COLOR.BLACK, text
     
   M5.Display.drawString(msg, x, y)
   
-  if silent == False:
+  if not silent:
     print("Printing " + msg)
 
 def drawDirectionV2(cx, cy, radius=48, angle_degrees=0, gap=16, circle_color=M5.Display.COLOR.BLACK, tri_color=DARKGREY, ydiff=0):
@@ -275,20 +277,15 @@ def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=Fals
       now_datetime = getRtcDatetime()
       now = utime.mktime((now_datetime[0], now_datetime[1], now_datetime[2], now_datetime[3], now_datetime[4], now_datetime[5],0,0))  + secondsDiff
       localtime = utime.localtime(now)
-    h = str(localtime[3])
-    if (localtime[3] < 10): h = "0" + h   
-    m = str(localtime[4])
-    if (localtime[4] < 10): m = "0" + m
-    timeStr = h + ":" + m
-    if SHOW_SECONDS == True: 
-      s = str(localtime[5])
-      if (localtime[5] < 10): s = "0" + s
-      timeStr += ":" + s
-    if firstRun == False and ("timeStr" not in prevStr or prevStr["timeStr"] != timeStr):
+    h, m, s = localtime[3:6]
+    timeStr = f"{h:02d}:{m:02d}"
+    if SHOW_SECONDS:
+      timeStr += f":{s:02d}"
+    if not firstRun and ("timeStr" not in prevStr or prevStr["timeStr"] != timeStr):
       locked = False 
-      if useLock == False and drawScreenLock.locked() == False:
+      if not useLock and not drawScreenLock.locked():
         locked = drawScreenLock.acquire()
-      if locked == True or useLock == True:
+      if locked or useLock:
         rotate = 1
         if mode >= 4: rotate = 3
         M5.Display.setFont(M5.Display.FONTS.DejaVu72)  
@@ -300,7 +297,7 @@ def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=Fals
           M5.Display.fillRect(int((SCREEN_WIDTH-wp)/2), 10, wp, f, M5.Display.COLOR.BLACK)
         printText(timeStr, int((SCREEN_WIDTH-w)/2), 10, silent=silent, rotate=rotate)  
         M5.Display.setTextSize(1)
-        if useLock == False and locked == True:
+        if not useLock and locked:
           drawScreenLock.release()
       prevStr["timeStr"] = timeStr    
   except Exception as e:
@@ -318,9 +315,9 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     
   locked = drawScreenLock.acquire()
 
-  if locked == True: 
+  if locked: 
 
-    if firstRun == True:
+    if firstRun:
       clear = True
 
     s = utime.time()
@@ -366,12 +363,12 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
 
     emergency = emergencyNew  
 
-    if emergency == False and rgbUnit != None:
+    if not emergency and rgbUnit != None:
       rgbUnit.set_color(0, M5.Display.COLOR.BLACK)
       rgbUnit.set_color(1, backgroundColor)
       rgbUnit.set_color(2, M5.Display.COLOR.BLACK)
 
-    if noNetwork == False and "ago" in newestEntry: 
+    if not noNetwork  and "ago" in newestEntry: 
       dateStr = newestEntry['ago']
     else:   
       dateStr = sgvDateStr.replace("T", " ")[:-3] #remove seconds
@@ -400,16 +397,14 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        sgvDiff = sgv - response[1]['sgv']
        if sgvDiff >= 100: sgvDiff = 99
        elif sgvDiff <= -100: sgvDiff = -99
-    sgvDiffStr = str(sgvDiff)
-    if sgvDiff > 0: sgvDiffStr = "+" + sgvDiffStr
-    sgvDiffStr = "(" + sgvDiffStr + ")"
+    sgvDiffStr = f"({'+' if sgvDiff > 0 else ''}{sgvDiff})"
 
     rotate = 1
     if mode >= 4:
       rotate = 3
     M5.Display.setRotation(rotate)  
 
-    if clear == True:
+    if clear:
        M5.Display.clear(M5.Display.COLOR.BLACK)
        prevStr = {}
 
@@ -436,21 +431,33 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
          M5.Display.fillRect(SCREEN_WIDTH-55, 20+b-nb, 25, nb, color)
       prevStr["batteryLevel"] = batteryLevel
  
-    if clear == True:
+    if clear:
        M5.Display.drawLine(10, y, SCREEN_WIDTH-10, y, DARKGREY)
     
+    muchTooOld = False
+    try:
+      muchTooOld = isOlderThan(sgvDateStr, MUCH_TOO_OLD_DATA, now, print_time=True) #older than MUCH_TOO_OLD_DATA mins
+    except Exception as e:
+      sys.print_exception(e)
+      saveError(e)
+    
+    if muchTooOld:
+      sgvStr = "---"
+      sgvDiffStr = "(--)"
+      arrowColor = M5.Display.COLOR.BLACK #hide arrow
+
     #draw sgv
     y += 30
     drawSgv = False
     if ("sgvStr" in prevStr and prevStr["sgvStr"] != sgvStr) or ("sgvStrColor" in prevStr and prevStr["sgvStrColor"] != backgroundColor):
-       M5.Display.fillRect(x, y, M5.Display.textWidth("8888"), f, M5.Display.COLOR.BLACK)
+       M5.Display.fillRect(x, y, M5.Display.textWidth("8888")-40, f, M5.Display.COLOR.BLACK)
        drawSgv = True
-    if drawSgv == True or "sgvStr" not in prevStr:  
+    if drawSgv or "sgvStr" not in prevStr:  
        printText(sgvStr, x, y, textColor=backgroundColor, rotate=rotate)
     M5.Display.setTextSize(1)
     
     ly = y+f-100
-    if drawSgv == True or "sgvStr" not in prevStr:  
+    if drawSgv or "sgvStr" not in prevStr:  
        sgvLabelStr = "mg/dL"  
        printText(sgvLabelStr, x+w, ly, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
     
@@ -464,7 +471,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     M5.Display.setTextSize(2)
     f = M5.Display.fontHeight()
     textColor = DARKGREY
-    if math.fabs(sgvDiff) >= 10 and backgroundColor != RED and not tooOld: textColor = RED
+    if math.fabs(sgvDiff) >= 10 and backgroundColor != RED and not tooOld and not muchTooOld: textColor = RED
     w = M5.Display.textWidth(sgvDiffStr)
     x = SCREEN_WIDTH - 20 - (2*radius) - gap - w
     drawSgvDiff = False
@@ -473,7 +480,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        if prevStr["sgvDiffStr"] != sgvDiffStr:
          M5.Display.fillRect(fx, y, M5.Display.textWidth(prevStr["sgvDiffStr"]), f+5, M5.Display.COLOR.BLACK)
          drawSgvDiff = True
-    if drawSgvDiff == True or "sgvDiffStr" not in prevStr:  
+    if drawSgvDiff or "sgvDiffStr" not in prevStr:  
        printText(sgvDiffStr, x, y+20, textColor=textColor, rotate=rotate)
     M5.Display.setTextSize(1)
     lx = x
@@ -506,7 +513,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        fx += int((SCREEN_WIDTH-fx-M5.Display.textWidth(prevStr["dateStr"]))/2)
        M5.Display.fillRect(fx, ly, M5.Display.textWidth(prevStr["dateStr"]), M5.Display.fontHeight(), M5.Display.COLOR.BLACK)
        drawDateStr = True
-    if drawDateStr == True or "dateStr" not in prevStr:  
+    if drawDateStr or "dateStr" not in prevStr:  
        printText(dateStr, x, ly, textColor=textColor, rotate=rotate)  
     prevStr["dateStr"] = dateStr
 
@@ -535,7 +542,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        fx = int((SCREEN_WIDTH-M5.Display.textWidth(prevPressureStr))/2)-60
        M5.Display.fillRect(fx, y, M5.Display.textWidth(prevPressureStr), f, M5.Display.COLOR.BLACK)
        drawPressure = True
-    if "pressureStr" not in prevStr or drawPressure == True:   
+    if "pressureStr" not in prevStr or drawPressure:   
        printText(pressureStr, int((SCREEN_WIDTH-w)/2)-60, y, rotate=rotate)
        printText("hPa", int((SCREEN_WIDTH-w)/2)-60+w, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
     prevStr["pressureStr"] = pressureStr
@@ -548,7 +555,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        printText("%h", SCREEN_WIDTH-20-90, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
     prevStr["humidityStr"] = humidityStr
 
-    if firstRun == True: firstRun = False
+    if firstRun: firstRun = False
 
     drawScreenLock.release()
     print("Printing screen finished in " + str((utime.time() - s)) + " secs ...")  
@@ -620,7 +627,7 @@ def emergencyMonitor():
   
   while True:
     #print('Emergency monitor checking status')
-    if emergency == True:
+    if emergency:
       batteryLevel = getBatteryLevel()
       sgv = response[0]['sgv']
       if batteryLevel < 10:
@@ -637,9 +644,9 @@ def emergencyMonitor():
         set_colorIndex += 1
         if set_colorIndex > 2: set_colorIndex = 0 
 
-      if beeperExecuted == False:
+      if not beeperExecuted:
         useBeeper = checkBeeper()
-      if useBeeper == True:
+      if useBeeper:
         M5.Speaker.setVolume(128)
         M5.Speaker.tone(1000, 500)
         M5.Power.setLed(255)
@@ -753,12 +760,12 @@ def watchdogCallback(t):
 
 def localtimeCallback(t):
   global shuttingDown, mode, secondsDiff, firstRun 
-  if shuttingDown == False:
+  if not shuttingDown:
     printLocaltime(mode, secondsDiff, silent=True, firstRun=firstRun)
 
 def onTouchTap(saveConfig=False):
   global emergency, emergencyPause
-  if emergency == True:
+  if emergency:
     emergency = False
     emergencyPause = utime.time() + EMERGENCY_PAUSE_INTERVAL
   else:   
@@ -768,7 +775,7 @@ def onTouchTap(saveConfig=False):
     M5.Widgets.setBrightness(brightness)
     config["brightness"] = brightness
     print("Setting brightness " + str(brightness))
-    if saveConfig == True:
+    if saveConfig:
       ap.saveConfigFile(config)
 
 def onTouchSwipe(t):
@@ -797,7 +804,7 @@ elif acceleration[0] < -1.0: mode = 0 #normal
 firstRun = True
 
 brightness = 1
-if config != None and RESET_BRIGHTNESS_AT_STARTUP == False: brightness = config["brightness"]
+if config != None and not RESET_BRIGHTNESS_AT_STARTUP: brightness = config["brightness"]
 M5.Widgets.setBrightness(brightness)
 
 printCenteredText("Starting...", mode, backgroundColor=DARKGREY, clear=True)  
