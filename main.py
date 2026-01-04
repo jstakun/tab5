@@ -429,6 +429,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
       if "batteryLevel" not in prevStr or prevStr["batteryLevel"] != batteryLevel:
          batteryLevelStr = f"{batteryLevel}%"
          M5.Display.setFont(M5.Display.FONTS.DejaVu40)  
+         M5.Display.setTextSize(1)
          w = M5.Display.textWidth(batteryLevelStr) 
          fh = M5.Display.fontHeight()
          y = 170
