@@ -751,9 +751,12 @@ def touchPadCallback(t):
                 print("^^^ SWIPE UP ^^^")
             onTouchSwipe(t)    
         else:
-            if (dx < 30 and dy < 30) or (dx > SCREEN_WIDTH-30 and dy > SCREEN_HEIGHT-30):
+            if (last_x < 30 and last_y < 30) or (last_x > SCREEN_WIDTH-30 and last_y > SCREEN_HEIGHT-30):
                SHOW_SECONDS = not SHOW_SECONDS
                print("--- TAP (Show Seconds " + str(SHOW_SECONDS) + ") ---")
+            #elif (last_x > SCREEN_WIDTH-30 and last_y < 30) or (last_x < 30 and last_y > SCREEN_HEIGHT-30):
+            #   print("--- TAP (Power Off) ---")
+            #   M5.Power.powerOff()
             else:
                print("--- TAP (No Swipe) ---")
                onTouchTap(saveConfig=True)
@@ -929,11 +932,14 @@ try:
     try: 
       nets = nic.scan()
       for result in nets:
-        wifi_ssid = result[0].decode() 
-        if wifi_ssid in config: 
-          wifi_password = config[wifi_ssid]
-        else:
-          print('No password for wifi ' + wifi_ssid + ' found')  
+        security_type = result[4]
+        is_hidden = result[5]
+        if security_type > 0 and is_hidden == 0: #filter out hidden and open networks
+          wifi_ssid = result[0].decode()
+          if wifi_ssid in config: 
+            wifi_password = config[wifi_ssid]
+          else:
+            print('No password for wifi ' + wifi_ssid + ' found')  
         if wifi_password != None: break
     except Exception as e:
       sys.print_exception(e)
