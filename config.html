@@ -40,7 +40,6 @@
             margin-bottom: 15px;
         }
 
-        /* NEW: Styles for the label row to hold the toggle link */
         .label-wrapper {
             display: flex;
             justify-content: space-between;
@@ -67,6 +66,19 @@
             border-radius: 4px;
         }
 
+        /* NEW: Error Message Styling */
+        .error-message {
+            color: #d9534f;
+            font-size: 0.85em;
+            margin-top: 5px;
+            display: block;
+            min-height: 1em;
+        }
+
+        .form-group input.invalid {
+            border-color: #d9534f;
+        }
+
         .form-group input[type="number"]::-webkit-inner-spin-button, 
         .form-group input[type="number"]::-webkit-outer-spin-button {
             -webkit-appearance: none;
@@ -91,7 +103,6 @@
         
     </style>
     <script> 
-        // NEW: Function to toggle visibility
         function toggleVisibility(inputId, anchor) {
             const field = document.getElementById(inputId);
             if (field.type === "password") {
@@ -103,20 +114,39 @@
             }
         }
 
+        function showError(fieldId, message) {
+            const errorSpan = document.getElementById(fieldId + '-error');
+            const inputField = document.getElementById(fieldId);
+            if (errorSpan) {
+                errorSpan.textContent = message;
+            }
+            if (inputField) {
+                inputField.classList.add('invalid');
+            }
+        }
+
+        function clearErrors() {
+            const errorSpans = document.querySelectorAll('.error-message');
+            errorSpans.forEach(span => span.textContent = '');
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(input => input.classList.remove('invalid'));
+        }
+
         function validateForm(event) {
+            clearErrors();
+            let isValid = true;
+
             const fields = [
                 'ssid', 'wifi_password', 'api-endpoint', 'api-token', 'emergencyMin', 'min', 'max', 'emergencyMax',
                 'locale', 'timezone', 'beeperStartTime', 'beeperEndTime'
             ];
 
-            let isValid = true;
-
+            // Required field check
             fields.forEach(fieldId => {
                 const field = document.getElementById(fieldId);
                 if (field && !field.value.trim()) {
-                    alert(`The "${fieldId}" field cannot be empty.`);
+                    showError(fieldId, 'This field cannot be empty.');
                     isValid = false;
-                    event.preventDefault();
                 }
             });
 
@@ -133,48 +163,42 @@
             const maxValue = parseInt(maxField.value, 10);
             const emergencyMaxValue = parseInt(emergencyMaxField.value, 10);
 
+            // Range Logic Checks
             if (emergencyMinValue <= 30) {
-                alert('The "Emergency Min" value must be greater than 30.');
+                showError('emergencyMin', 'Must be greater than 30.');
                 isValid = false;
-                event.preventDefault();
             }
 
             if (minValue <= emergencyMinValue) {
-                alert('The "Min" value must be greater than the "Emergency Min" value.');
+                showError('min', 'Must be greater than Emergency Min.');
                 isValid = false;
-                event.preventDefault();
             }
 
             if (maxValue <= minValue) {
-                alert('The "Max" value must be greater than the "Min" value.');
+                showError('max', 'Must be greater than Min.');
                 isValid = false;
-                event.preventDefault();
             }
 
             if (emergencyMaxValue <= maxValue) {
-                alert('The "Emergency Max" value must be greater than the "Max" value.');
+                showError('emergencyMax', 'Must be greater than Max.');
                 isValid = false;
-                event.preventDefault();
             }
 
             if (maxValue <= 100) {
-                alert('The "Max" value must be greater than 100.');
+                showError('max', 'Max value must be greater than 100.');
                 isValid = false;
-                event.preventDefault();
             }
 
+            // Regex Checks
             const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
-
-            if (!timeRegex.test(startTimeField.value)) {
-                alert('Invalid format for Beeper Start Time. Please use HH:MM:SS.');
+            if (startTimeField.value && !timeRegex.test(startTimeField.value)) {
+                showError('beeperStartTime', 'Use format HH:MM:SS.');
                 isValid = false;
-                event.preventDefault();
             }
 
-            if (!timeRegex.test(endTimeField.value)) {
-                alert('Invalid format for Beeper End Time. Please use HH:MM:SS.');
+            if (endTimeField.value && !timeRegex.test(endTimeField.value)) {
+                showError('beeperEndTime', 'Use format HH:MM:SS.');
                 isValid = false;
-                event.preventDefault();
             }
 
             const timezoneRegex = /^([+-])([0-9]|0[0-9]|1[0-2]):([0-5][0-9])$/;
@@ -182,19 +206,20 @@
             const match = timezone.match(timezoneRegex);
 
             if (!match) {
-                alert('The "Timezone" value must be between -12:00 and 12:00.');
-                isValid = false
-                event.preventDefault();
-            }
-
-            const hours = parseInt(match[2], 10);
-            const minutes = parseInt(match[3], 10);
-            if (hours > 12 || (hours === 12 && minutes > 0)) {
-                alert('The "Timezone" value must be between -12:00 and 12:00.');
+                showError('timezone', 'Must be between -12:00 and +12:00 (e.g. +02:00).');
                 isValid = false;
-                event.preventDefault();
+            } else {
+                const hours = parseInt(match[2], 10);
+                const minutes = parseInt(match[3], 10);
+                if (hours > 12 || (hours === 12 && minutes > 0)) {
+                    showError('timezone', 'Range exceeded (-12:00 to 12:00).');
+                    isValid = false;
+                }
             }
             
+            if (!isValid) {
+                event.preventDefault();
+            }
             return isValid;
         }
     </script>
@@ -202,13 +227,14 @@
 <body>
     <div class="form-container">
         <h1>Glucose Monitoring Configuration</h1>
-        <form onsubmit="validateForm(event)" method="post" action="/config">
+        <form onsubmit="return validateForm(event)" method="post" action="/config">
             
             <h3>WiFi Settings</h3>
             
             <div class="form-group">
                 <label for="ssid">Wifi SSID</label>
-                <input type="text" id="ssid" name="ssid" value="{{ssid}}" placeholder="Your WiFi network SSID" autofocus required>
+                <input type="text" id="ssid" name="ssid" value="{{ssid}}" placeholder="Your WiFi network SSID" autofocus>
+                <span id="ssid-error" class="error-message"></span>
             </div>
 
             <div class="form-group">
@@ -216,14 +242,16 @@
                     <label for="wifi_password">Wifi Password</label>
                     <span class="toggle-link" onclick="toggleVisibility('wifi_password', this)">Show</span>
                 </div>
-                <input type="password" id="wifi_password" name="wifi_password" value="{{wifi_password}}" placeholder="Your WiFi network Password" required>
+                <input type="password" id="wifi_password" name="wifi_password" value="{{wifi_password}}" placeholder="Your WiFi network Password">
+                <span id="wifi_password-error" class="error-message"></span>
             </div>
 
             <h3>API Settings</h3>
             
             <div class="form-group">
                 <label for="api-endpoint">API Endpoint URL</label>
-                <input type="text" id="api-endpoint" name="api-endpoint" value="{{api-endpoint}}" required>
+                <input type="text" id="api-endpoint" name="api-endpoint" value="{{api-endpoint}}">
+                <span id="api-endpoint-error" class="error-message"></span>
             </div>
 
             <div class="form-group">
@@ -231,41 +259,48 @@
                     <label for="api-token">API Token</label>
                     <span class="toggle-link" onclick="toggleVisibility('api-token', this)">Show</span>
                 </div>
-                <input type="password" id="api-token" name="api-token" value="{{api-token}}" placeholder="Your API Token" required>
+                <input type="password" id="api-token" name="api-token" value="{{api-token}}" placeholder="Your API Token">
+                <span id="api-token-error" class="error-message"></span>
             </div>
             
             <h3>Glucose Level Settings</h3>
 
             <div class="form-group">
                 <label for="emergencyMin">Glucose low Emergency level</label>
-                <input type="number" id="emergencyMin" name="emergencyMin" value="{{emergencyMin}}" required>
+                <input type="number" id="emergencyMin" name="emergencyMin" value="{{emergencyMin}}">
+                <span id="emergencyMin-error" class="error-message"></span>
             </div>
 
             <div class="form-group">
                 <label for="min">Glucose minimal level</label>
-                <input type="number" id="min" name="min" value="{{min}}" required>
+                <input type="number" id="min" name="min" value="{{min}}">
+                <span id="min-error" class="error-message"></span>
             </div>
 
             <div class="form-group">
                 <label for="max">Glucose maximum level</label>
-                <input type="number" id="max" name="max" value="{{max}}" required>
+                <input type="number" id="max" name="max" value="{{max}}">
+                <span id="max-error" class="error-message"></span>
             </div>
 
             <div class="form-group">
                 <label for="emergencyMax">Glucose high Emergency level</label>
-                <input type="number" id="emergencyMax" name="emergencyMax" value="{{emergencyMax}}" required>
+                <input type="number" id="emergencyMax" name="emergencyMax" value="{{emergencyMax}}">
+                <span id="emergencyMax-error" class="error-message"></span>
             </div>
 
             <h3>Locale and Timezone Settings</h3>
 
             <div class="form-group">
                 <label for="locale">Locale</label>
-                <input type="text" id="locale" name="locale" value="" required>
+                <input type="text" id="locale" name="locale" value="">
+                <span id="locale-error" class="error-message"></span>
             </div>
 
             <div class="form-group">
                 <label for="timezone">GMT timezone difference (+/-HH:MM)</label>
-                <input type="text" id="timezone" name="timezone" value="{{timezone}}" placeholder="+02:00" required>
+                <input type="text" id="timezone" name="timezone" value="{{timezone}}" placeholder="+02:00">
+                <span id="timezone-error" class="error-message"></span>
             </div>
             
             <h3>Beeper Settings</h3>
@@ -280,27 +315,18 @@
 
             <div class="form-group">
                 <label for="beeperStartTime">Beeper Start Time</label>
-                <input type="time" id="beeperStartTime" name="beeperStartTime" value="{{beeperStartTime}}" step="1" required>
+                <input type="time" id="beeperStartTime" name="beeperStartTime" value="{{beeperStartTime}}" step="1">
+                <span id="beeperStartTime-error" class="error-message"></span>
             </div>
 
             <div class="form-group">
                 <label for="beeperEndTime">Beeper End Time</label>
-                <input type="time" id="beeperEndTime" name="beeperEndTime" value="{{beeperEndTime}}" step="1" required>
+                <input type="time" id="beeperEndTime" name="beeperEndTime" value="{{beeperEndTime}}" step="1">
+                <span id="beeperEndTime-error" class="error-message"></span>
             </div>
 
             <input type="hidden" id="oldData" name="oldData" value="15">
-            
-            <!--div class="form-group">
-                <label for="oldData">Old Data (min)</label>
-                <input type="number" id="oldData" name="oldData" value="15">
-            </div-->
-
             <input type="hidden" id="oldDataEmergenc" name="oldDataEmergenc" value="1440">
-
-            <!--div class="form-group">
-                <label for="oldDataEmergenc">Old Data Emergency (min)</label>
-                <input type="number" id="oldDataEmergenc" name="oldDataEmergenc" value="1440">
-            </div-->
 
             <button type="submit">Save Configuration</button>
         </form>
