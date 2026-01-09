@@ -322,6 +322,10 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
       clear = True
 
     s = utime.time()
+
+    acceleration = M5.Imu.getAccel()
+    print("Current acceleration: " + str(acceleration))
+
     print('Printing screen in ' + MODES[mode] + ' mode')
   
     sgv = newestEntry['sgv']
@@ -812,7 +816,7 @@ M5.begin()
 response = None
 
 mode = 0 
-if config != None and "mode" in config:
+if config != None and "screen-mode" in config:
    mode = config["screen-mode"]
 acceleration = M5.Imu.getAccel()
 if acceleration[0] > 1.0: mode = 4 #flip
