@@ -489,7 +489,10 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     M5.Display.setTextSize(2)
     f = M5.Display.fontHeight()
     textColor = DARKGREY
-    if math.fabs(sgvDiff) >= 10 and backgroundColor != RED and not tooOld and not muchTooOld: textColor = RED
+    if not tooOld and not muchTooOld:
+       fabsSgvDiff = math.fabs(sgvDiff)
+       if fabsSgvDiff >= 20: textColor = RED
+       elif fabsSgvDiff >= 10: textColor = ORANGE
     w = M5.Display.textWidth(sgvDiffStr)
     x = SCREEN_WIDTH - 20 - (2*radius) - gap - w
     drawSgvDiff = False
@@ -556,7 +559,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     w = M5.Display.textWidth(pressureStr)
     drawPressure = False
     if "pressureStr" in prevStr and prevStr["pressureStr"] != pressureStr:
-       prevPressureStr = prevStr["pressureStr"] + "hpa"
+       prevPressureStr = prevStr["pressureStr"] + " hPa"
        fx = int((SCREEN_WIDTH-M5.Display.textWidth(prevPressureStr))/2)-60
        M5.Display.fillRect(fx, y, M5.Display.textWidth(prevPressureStr), f, M5.Display.COLOR.BLACK)
        drawPressure = True
