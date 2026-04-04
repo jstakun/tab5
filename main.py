@@ -30,7 +30,7 @@ MIN_SWIPE_DIST = 250  # Minimum distance in pixels to count as a swipe
 
 SHOW_SECONDS = False
 RESET_BRIGHTNESS_AT_STARTUP = True
-MUCH_TOO_OLD_DATA = 30 #mins
+MUCH_TOO_OLD_DATA = 70 #mins
 
 #M5.Display.COLOR
 #Decimal = (Red × 65536) + (Green × 256) + Blue
@@ -493,8 +493,8 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     textColor = DARKGREY
     if not tooOld and not muchTooOld:
        fabsSgvDiff = math.fabs(sgvDiff)
-       if fabsSgvDiff >= 20 and (sgv >= (MAX-20) or sgv <= (MIN+20)) : textColor = RED
-       elif fabsSgvDiff >= 10 and (sgv >= (MAX-10) or sgv <= (MIN+10)): textColor = ORANGE
+       if fabsSgvDiff >= 10 and (sgv <= (MIN+10)) : textColor = RED
+       elif fabsSgvDiff >= 10 and (sgv >= (MAX-10)): textColor = ORANGE
     w = M5.Display.textWidth(sgvDiffStr)
     x = SCREEN_WIDTH - 20 - (2*radius) - gap - w
     drawSgvDiff = False
