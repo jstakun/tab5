@@ -21,7 +21,8 @@ EMERGENCY_PAUSE_INTERVAL = 1800  #sec = 30 mins
 MODES = ["full_all", "full_date", "full_battery", "basic", "flip_full_all", "flip_full_date", "flip_full_battery", "chart", "flip_chart"]
 SGVDICT_FILE = 'sgvdict.txt'
 RESPONSE_FILE = 'response.json'
-BACKEND_TIMEOUT_MS = 55000 #max 60000
+BACKEND_TIMEOUT_SEC = 30 # 55 #max 60
+BACKEND_TIMEOUT_MS = BACKEND_TIMEOUT_SEC * 1000 #dont change
 MAX_SAVED_ENTRIES = 10
 YEAR = 2025
 SCREEN_WIDTH = 1280
@@ -594,26 +595,29 @@ def backendMonitor():
     try:
       #print('Battery level: ' + str(getBatteryLevel()) + '%')
       printTime((utime.time() - startTime), prefix='Uptime is')
-      print("Calling backend with timeout " + str(BACKEND_TIMEOUT_MS) + " ms ...")
+      print("Calling backend with timeout " + str(BACKEND_TIMEOUT_SEC) + " sec ...")
       s = utime.time()
       backendResponseTimer.init(mode=machine.Timer.ONE_SHOT, period=BACKEND_TIMEOUT_MS+10000, callback=watchdogCallback)
-      backendResponse = requests2.get(API_ENDPOINT + "/entries.json?count=10&waitfornextid=" + str(lastid) + "&timeout=" + str(BACKEND_TIMEOUT_MS), headers={'api-secret': API_TOKEN,'accept-language': LOCALE,'accept-charset': 'ascii', 'x-gms-tz': TIMEZONE})
-      backendResponseTimer.deinit()
-      response = backendResponse.json()
-      backendResponse.close()
-      printTime((utime.time() - s), prefix='Response received in')
-      sgv = response[0]['sgv']
-      sgvDate = response[0]['date']
-      lastid = response[0]['id']
-      print('Sgv:', sgv)
-      print('Direction:', response[0]['direction'])
-      print('Read: ' + sgvDate + ' (' + TIMEZONE + ')')
-      sgvDiff = 0
-      if len(response) > 1: sgvDiff = sgv - response[1]['sgv']
-      print('Sgv diff from previous read:', sgvDiff)
-      drawScreen(response[0], clear=False)
-      _thread.start_new_thread(persistEntries, ())
-      #persistEntries() 
+      backendResponse = requests2.get(API_ENDPOINT + "/entries.json?count=10&waitfornextid=" + str(lastid) + "&timeout=" + str(BACKEND_TIMEOUT_MS), headers={'api-secret': API_TOKEN,'accept-language': LOCALE,'accept-charset': 'ascii', 'x-gms-tz': TIMEZONE}, timeout=BACKEND_TIMEOUT_SEC)
+      print('Response status code:', backendResponse.status_code)
+      if backendResponse.status_code == 200:
+        backendResponseTimer.deinit()
+        response = backendResponse.json()
+        backendResponse.close()
+        printTime((utime.time() - s), prefix='Received in')
+        sgv = response[0]['sgv']
+        sgvDate = response[0]['date']
+        lastid = response[0]['id']
+        print('Sgv:', sgv)
+        print('Direction:', response[0]['direction'])
+        print('Read: ' + sgvDate + ' (' + TIMEZONE + ')')
+        sgvDiff = 0
+        if len(response) > 1: sgvDiff = sgv - response[1]['sgv']
+        print('Sgv diff from previous read:', sgvDiff)
+        drawScreen(response[0], clear=False)
+        _thread.start_new_thread(persistEntries, ())
+      else:
+        raise ValueError("Backend response error code " + str(backendResponse.status_code))   
     except Exception as e:
       backendResponseTimer.deinit()
       if backendResponse != None: backendResponse.close()
