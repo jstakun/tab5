@@ -589,28 +589,39 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
 # ------
 
 def backendMonitor():
-  global response, API_ENDPOINT, API_TOKEN, LOCALE, TIMEZONE, startTime, sgvDict, secondsDiff, backendResponse, mode
+  global response, API_ENDPOINT, API_TOKEN, LOCALE, TIMEZONE, startTime, sgvDict, secondsDiff, backendResponse, mode, wifi_ssid, wifi_password
   lastid = -1
   retry_count = 0
   nic = network.WLAN(network.STA_IF)
   
   while True:
     try:
-      # Check WiFi status
+      # Check and reconnect WiFi if needed
       if not nic.isconnected():
-        print("WiFi connection lost. Waiting for reconnection...")
-        time.sleep(5)
+        print(f"WiFi connection lost. Reconnecting to {wifi_ssid}...")
+        nic.connect(wifi_ssid, wifi_password)
+        # Wait up to 15 seconds for reconnection
+        for _ in range(30):
+          if nic.isconnected():
+            print("WiFi reconnected.")
+            break
+          time.sleep(0.5)
+        
         if not nic.isconnected():
+            print("WiFi reconnection failed. Retrying in 10s...")
+            time.sleep(10)
             continue
 
       printTime((utime.time() - startTime), prefix="Uptime is")
       print(f"Calling backend (retry {retry_count})...")
       s = utime.time()
       
+      backendResponseTimeout = BACKEND_TIMEOUT_SEC + 5
+      
       backendResponse = requests2.get(
         API_ENDPOINT + "/entries.json?count=10&waitfornextid=" + str(lastid) + "&timeout=" + str(BACKEND_TIMEOUT_MS), 
         headers={"api-secret": API_TOKEN, "accept-language": LOCALE, "accept-charset": "ascii", "x-gms-tz": TIMEZONE},
-        timeout=BACKEND_TIMEOUT_SEC
+        timeout=backendResponseTimeout
       )
       
       print("Response status code:", backendResponse.status_code)
@@ -630,6 +641,7 @@ def backendMonitor():
         print("Sgv diff from previous read:", sgvDiff)
         drawScreen(response[0], clear=False)
         _thread.start_new_thread(persistEntries, ())
+        gc.collect()
       else:
         raise ValueError("Backend response error code " + str(backendResponse.status_code))   
         
@@ -953,6 +965,7 @@ try:
 
   printCenteredText("Scanning wifi...", mode, backgroundColor=DARKGREY)
 
+  global wifi_password, wifi_ssid
   wifi_password = None
   wifi_ssid = None  
   while wifi_password == None:
