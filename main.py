@@ -589,42 +589,59 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
 # ------
 
 def backendMonitor():
-  global response, API_ENDPOINT, API_TOKEN, LOCALE, TIMEZONE, startTime, sgvDict, secondsDiff, backendResponseTimer, backendResponse, mode
+  global response, API_ENDPOINT, API_TOKEN, LOCALE, TIMEZONE, startTime, sgvDict, secondsDiff, backendResponse, mode
   lastid = -1
+  retry_count = 0
+  nic = network.WLAN(network.STA_IF)
+  
   while True:
     try:
-      #print('Battery level: ' + str(getBatteryLevel()) + '%')
-      printTime((utime.time() - startTime), prefix='Uptime is')
-      print("Calling backend with timeout " + str(BACKEND_TIMEOUT_SEC) + " sec ...")
+      # Check WiFi status
+      if not nic.isconnected():
+        print("WiFi connection lost. Waiting for reconnection...")
+        time.sleep(5)
+        if not nic.isconnected():
+            continue
+
+      printTime((utime.time() - startTime), prefix="Uptime is")
+      print(f"Calling backend (retry {retry_count})...")
       s = utime.time()
-      backendResponseTimer.init(mode=machine.Timer.ONE_SHOT, period=BACKEND_TIMEOUT_MS+10000, callback=watchdogCallback)
-      backendResponse = requests2.get(API_ENDPOINT + "/entries.json?count=10&waitfornextid=" + str(lastid) + "&timeout=" + str(BACKEND_TIMEOUT_MS), headers={'api-secret': API_TOKEN,'accept-language': LOCALE,'accept-charset': 'ascii', 'x-gms-tz': TIMEZONE}, timeout=BACKEND_TIMEOUT_SEC)
-      print('Response status code:', backendResponse.status_code)
+      
+      backendResponse = requests2.get(
+        API_ENDPOINT + "/entries.json?count=10&waitfornextid=" + str(lastid) + "&timeout=" + str(BACKEND_TIMEOUT_MS), 
+        headers={"api-secret": API_TOKEN, "accept-language": LOCALE, "accept-charset": "ascii", "x-gms-tz": TIMEZONE},
+        timeout=BACKEND_TIMEOUT_SEC
+      )
+      
+      print("Response status code:", backendResponse.status_code)
       if backendResponse.status_code == 200:
-        backendResponseTimer.deinit()
+        retry_count = 0 # Reset retries on success
         response = backendResponse.json()
         backendResponse.close()
-        printTime((utime.time() - s), prefix='Received in')
-        sgv = response[0]['sgv']
-        sgvDate = response[0]['date']
-        lastid = response[0]['id']
-        print('Sgv:', sgv)
-        print('Direction:', response[0]['direction'])
-        print('Read: ' + sgvDate + ' (' + TIMEZONE + ')')
+        printTime((utime.time() - s), prefix="Received in")
+        sgv = response[0]["sgv"]
+        sgvDate = response[0]["date"]
+        lastid = response[0]["id"]
+        print("Sgv:", sgv)
+        print("Direction:", response[0]["direction"])
+        print("Read: " + sgvDate + " (" + TIMEZONE + ")")
         sgvDiff = 0
-        if len(response) > 1: sgvDiff = sgv - response[1]['sgv']
-        print('Sgv diff from previous read:', sgvDiff)
+        if len(response) > 1: sgvDiff = sgv - response[1]["sgv"]
+        print("Sgv diff from previous read:", sgvDiff)
         drawScreen(response[0], clear=False)
         _thread.start_new_thread(persistEntries, ())
       else:
         raise ValueError("Backend response error code " + str(backendResponse.status_code))   
+        
     except Exception as e:
-      backendResponseTimer.deinit()
-      if backendResponse != None: backendResponse.close()
+      if backendResponse != None: 
+        try: backendResponse.close()
+        except: pass
+      
       lastid = -1
+      retry_count += 1
       sys.print_exception(e)
-      #saveError(e)
-      #print('Battery level: ' + str(getBatteryLevel()) + '%')
+      
       if response == None: readResponseFile()
       try: 
         if response != None and len(response) >= 1: 
@@ -634,9 +651,19 @@ def backendMonitor():
       except Exception as e:
         sys.print_exception(e)
         saveError(e)
-      print('Backend call error. Retry in 5 secs ...')
-      time.sleep(5)
-    print('---------------------------')
+      
+      # Exponential backoff: 5, 10, 20, 40, 60, 60...
+      wait_time = min(60, 5 * (2**(retry_count-1)))
+      print(f"Backend call error. Retry in {wait_time} secs ...")
+      
+      if retry_count > 5: # Reset WiFi after ~10 consecutive failures
+        print("Too many failures. Resetting WiFi...")
+        nic.disconnect()
+        time.sleep(2)
+        retry_count = 0 
+        
+      time.sleep(wait_time)
+    print("---------------------------")
 
 def setEmergencyrgbUnitColor(setBeepColorIndex, beepColor):
   global rgbUnit
@@ -774,19 +801,6 @@ def touchPadCallback(t):
                print("--- TAP (No Swipe) ---")
                onTouchTap(saveConfig=True)
 
-
-def watchdogCallback(t):
-  global shuttingDown, backendResponse, rgbUnit, response, mode
-
-  print('Restarting due to backend communication failure ...')
-  if rgbUnit != None:
-    rgbUnit.set_color(0, M5.Display.COLOR.BLACK)
-    rgbUnit.set_color(1, M5.Display.COLOR.DARKGREY)
-    rgbUnit.set_color(2, M5.Display.COLOR.BLACK)
-  if backendResponse != None: backendResponse.close()
-  WDT(timeout=1000)   
-  shuttingDown = True
-  printCenteredText("Restarting...", mode, backgroundColor=RED, clear=True)
 
 def localtimeCallback(t):
   global shuttingDown, mode, secondsDiff, firstRun 
@@ -992,10 +1006,6 @@ try:
   dictLen = len(sgvDict)
   print("Loaded " + str(dictLen) + " sgv entries")
 
-  #max 4 timers 0-3
-
-  backendResponseTimer = machine.Timer(1)
-  
   localtimeTimer = machine.Timer(2)
   localtimeTimer.init(period=1000, callback=localtimeCallback)
 
