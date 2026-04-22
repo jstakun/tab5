@@ -237,24 +237,31 @@ def drawArrow(cx, cy, radius=60, angle_degrees=0, color=DARKGREY, is_double=Fals
     r = radius + 16
     
     if is_double:
-        tri_h = r * 0.4
-        tri_w = r * 0.55
-        offsets = [r * 0.45, -r * 0.1]
-        # Total span is from offsets[1]-tri_h to offsets[0]
-        total_len = offsets[0] - (offsets[1] - tri_h)
-        # Shift to center the span on cy
-        shift = offsets[0] - total_len / 2
+        tri_h = r * 0.7
+        tri_w = r * 0.9
+        stem_l = r * 0.4
+        stem_w = r * 0.3
+        
+        # Head 1 tip at off1, Head 2 tip at off2
+        # For 50% overlap: off2 = off1 - 0.5 * tri_h
+        off1 = r * 0.5
+        off2 = off1 - tri_h * 0.5
+        offsets = [off1, off2]
+        
+        # Total span: from (off2 - tri_h - stem_l) to off1
+        total_len = off1 - (off2 - tri_h - stem_l)
+        shift = off1 - total_len / 2
         circle_r = int(total_len / 2) + 2
     else:
-        tri_h = r * 0.5
-        tri_w = r * 0.65
+        tri_h = r * 0.75
+        tri_w = r * 1.0
         stem_l = r * 0.6
         total_len = tri_h + stem_l
         # Tip is at 'r', end is at 'r - total_len'
         # Shift to center the span on cy
         shift = r - total_len / 2
         circle_r = int(total_len / 2) + 2
-        stem_w = r * 0.25
+        stem_w = r * 0.3
 
     M5.Lcd.fillCircle(cx, cy, circle_r, M5.Display.COLOR.BLACK)
     rad = math.radians(angle_degrees - 90)
@@ -272,15 +279,24 @@ def drawArrow(cx, cy, radius=60, angle_degrees=0, color=DARKGREY, is_double=Fals
             p2 = get_rotated(off - tri_h, -tri_w/2)
             p3 = get_rotated(off - tri_h, tri_w/2)
             M5.Lcd.fillTriangle(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], color)
+        # Draw stem from the base of the second arrow
+        s_off = offsets[1] - tri_h
+        s1 = get_rotated(s_off, -stem_w/2)
+        s2 = get_rotated(s_off, stem_w/2)
+        s3 = get_rotated(s_off - stem_l, stem_w/2)
+        s4 = get_rotated(s_off - stem_l, -stem_w/2)
+        M5.Lcd.fillTriangle(s1[0], s1[1], s2[0], s2[1], s3[0], s3[1], color)
+        M5.Lcd.fillTriangle(s1[0], s1[1], s3[0], s3[1], s4[0], s4[1], color)
     else:
         p1 = get_rotated(r, 0)
         p2 = get_rotated(r - tri_h, -tri_w/2)
         p3 = get_rotated(r - tri_h, tri_w/2)
         M5.Lcd.fillTriangle(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], color)
-        s1 = get_rotated(r - tri_h, -stem_w/2)
-        s2 = get_rotated(r - tri_h, stem_w/2)
-        s3 = get_rotated(r - tri_h - stem_l, stem_w/2)
-        s4 = get_rotated(r - tri_h - stem_l, -stem_w/2)
+        s_off = r - tri_h
+        s1 = get_rotated(s_off, -stem_w/2)
+        s2 = get_rotated(s_off, stem_w/2)
+        s3 = get_rotated(s_off - stem_l, stem_w/2)
+        s4 = get_rotated(s_off - stem_l, -stem_w/2)
         M5.Lcd.fillTriangle(s1[0], s1[1], s2[0], s2[1], s3[0], s3[1], color)
         M5.Lcd.fillTriangle(s1[0], s1[1], s3[0], s3[1], s4[0], s4[1], color)
 
