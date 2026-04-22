@@ -251,7 +251,7 @@ def drawArrow(cx, cy, radius=60, angle_degrees=0, color=DARKGREY, is_double=Fals
         # Total span: from (off2 - tri_h - stem_l) to off1
         total_len = off1 - (off2 - tri_h - stem_l)
         shift = off1 - total_len / 2
-        circle_r = int(total_len / 2) + 2
+        circle_r = int(total_len / 2) + 6
     else:
         tri_h = r * 0.75
         tri_w = r * 1.0
@@ -260,7 +260,7 @@ def drawArrow(cx, cy, radius=60, angle_degrees=0, color=DARKGREY, is_double=Fals
         # Tip is at 'r', end is at 'r - total_len'
         # Shift to center the span on cy
         shift = r - total_len / 2
-        circle_r = int(total_len / 2) + 2
+        circle_r = int(total_len / 2) + 6
         stem_w = r * 0.3
 
     M5.Lcd.fillCircle(cx, cy, circle_r, M5.Display.COLOR.BLACK)
@@ -299,50 +299,6 @@ def drawArrow(cx, cy, radius=60, angle_degrees=0, color=DARKGREY, is_double=Fals
         s4 = get_rotated(s_off - stem_l, -stem_w/2)
         M5.Lcd.fillTriangle(s1[0], s1[1], s2[0], s2[1], s3[0], s3[1], color)
         M5.Lcd.fillTriangle(s1[0], s1[1], s3[0], s3[1], s4[0], s4[1], color)
-
-def drawDirectionV2(cx, cy, radius=48, angle_degrees=0, gap=16, circle_color=M5.Display.COLOR.BLACK, tri_color=DARKGREY, ydiff=0):
-    #cx - Center X coordinate
-    #cy - Center Y coordinate
-    #radius - Radius of the circle
-    #gap - Pixel gap
-    #circle_color 
-    #tri_color
-    #ydiff - triangle distance 
-    
-    # 1. Clear previous state
-    M5.Lcd.fillCircle(cx, cy, radius, circle_color)
-
-    r_tri = radius - gap
-    
-    # 2. Adjust the Angle
-    # We subtract 90 degrees so that Input 0 aligns with "Up" (270 deg / -90 deg on circle)
-    # We add the user input 'angle_degrees' to rotate clockwise from there.
-    adjusted_angle = angle_degrees - 90
-    rotation_rad = adjusted_angle * (math.pi / 180)
-
-    # 3. Calculate Vertices
-    
-    # Vertex 1: The "Pointer"
-    v1_angle = rotation_rad
-    x1 = cx + int(r_tri * math.cos(v1_angle))
-    y1 = cy + int(r_tri * math.sin(v1_angle))
-
-    # Vertex 2: +120 degrees from pointer
-    v2_angle = rotation_rad + (2 * math.pi / 3)
-    x2 = cx + int(r_tri * math.cos(v2_angle))
-    y2 = cy + int(r_tri * math.sin(v2_angle))
-
-    # Vertex 3: +240 degrees from pointer
-    v3_angle = rotation_rad + (4 * math.pi / 3)
-    x3 = cx + int(r_tri * math.cos(v3_angle))
-    y3 = cy + int(r_tri * math.sin(v3_angle))
-
-    # 4. Draw
-    if ydiff == 0:
-      M5.Lcd.fillTriangle(x1, y1, x2, y2, x3, y3, tri_color)
-    else:  
-      M5.Lcd.fillTriangle(x1, y1-ydiff, x2, y2-ydiff, x3, y3-ydiff, tri_color)
-      M5.Lcd.fillTriangle(x1, y1+ydiff, x2, y2+ydiff, x3, y3+ydiff, tri_color)
 
 def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=False, firstRun=False):
   global prevStr
