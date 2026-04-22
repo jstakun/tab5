@@ -17,6 +17,13 @@ import ap
 import ujson
 from unit import ENVUnit, RGBUnit
 
+TIMEZONE_RE = re.compile(r"^GMT[+-]((0?[0-9]|1[0-1]):([0-5][0-9])|12:00)$")
+
+SGV_LABEL = "mg/dL"
+HPA_LABEL = "hPa"
+HUMIDITY_LABEL = "%h"
+TEMPC_LABEL = "C"
+
 EMERGENCY_PAUSE_INTERVAL = 1800  #sec = 30 mins
 MODES = ["full_all", "full_date", "full_battery", "basic", "flip_full_all", "flip_full_date", "flip_full_battery", "chart", "flip_chart"]
 SGVDICT_FILE = 'sgvdict.txt'
@@ -505,8 +512,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     
     ly = y+f-100
     if drawSgv or "sgvStr" not in prevStr:  
-       sgvLabelStr = "mg/dL"  
-       printText(sgvLabelStr, x+w, ly, font=M5.Display.FONTS.DejaVu40)
+       printText(SGV_LABEL, x+w, ly, font=M5.Display.FONTS.DejaVu40)
     
     prevStr["sgvStr"] = sgvStr
     prevStr["sgvStrColor"] = backgroundColor
@@ -580,7 +586,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     fy = int(y+(SCREEN_HEIGHT-y)/2)-20 - 5
     if "tempStr" not in prevStr or prevStr["tempStr"] != tempStr:
        printText(tempStr, 20, y)
-       printText("C", 20+w, fy, font=M5.Display.FONTS.DejaVu40)
+       printText(TEMPC_LABEL, 20+w, fy, font=M5.Display.FONTS.DejaVu40)
     prevStr["tempStr"] = tempStr
 
     #draw pressureStr
@@ -594,7 +600,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        drawPressure = True
     if "pressureStr" not in prevStr or drawPressure:   
        printText(pressureStr, int((SCREEN_WIDTH-w)/2)-60, y)
-       printText("hPa", int((SCREEN_WIDTH-w)/2)-60+w, fy, font=M5.Display.FONTS.DejaVu40)
+       printText(HPA_LABEL, int((SCREEN_WIDTH-w)/2)-60+w, fy, font=M5.Display.FONTS.DejaVu40)
     prevStr["pressureStr"] = pressureStr
 
     #draw humidityStr
@@ -602,7 +608,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     w = M5.Display.textWidth(humidityStr)
     if "humidityStr" not in prevStr or prevStr["humidityStr"] != humidityStr:
        printText(humidityStr, SCREEN_WIDTH-w-20-90, y)
-       printText("%h", SCREEN_WIDTH-20-90, fy, font=M5.Display.FONTS.DejaVu40)
+       printText(HUMIDITY_LABEL, SCREEN_WIDTH-20-90, fy, font=M5.Display.FONTS.DejaVu40)
     prevStr["humidityStr"] = humidityStr
 
     if firstRun: firstRun = False
@@ -655,6 +661,7 @@ def backendMonitor():
         retry_count = 0 # Reset retries on success
         response = backendResponse.json()
         backendResponse.close()
+        gc.collect()
         printTime((utime.time() - s), prefix="Received in")
         sgv = response[0]["sgv"]
         sgvDate = response[0]["date"]
@@ -667,7 +674,6 @@ def backendMonitor():
         print("Sgv diff from previous read:", sgvDiff)
         drawScreen(response[0], clear=False)
         _thread.start_new_thread(persistEntries, ())
-        gc.collect()
       else:
         raise ValueError("Backend response error code " + str(backendResponse.status_code))   
         
@@ -963,7 +969,7 @@ else:
      if EMERGENCY_MAX < 100 or MAX >= EMERGENCY_MAX: EMERGENCY_MAX=MAX+10  
      if len(API_ENDPOINT) == 0: raise Exception("Empty api-endpoint parameter")
      if USE_BEEPER != 1 and USE_BEEPER != 0: USE_BEEPER=1
-     if re.search("^GMT[+-]((0?[0-9]|1[0-1]):([0-5][0-9])|12:00)$",TIMEZONE) == None: TIMEZONE="GMT+0:00"
+     if TIMEZONE_RE.search(TIMEZONE) == None: TIMEZONE="GMT+0:00"
      if OLD_DATA < 10: OLD_DATA=10
      if OLD_DATA_EMERGENCY < 15: OLD_DATA_EMERGENCY=15
 
