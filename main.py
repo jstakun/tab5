@@ -214,8 +214,9 @@ def printCenteredText(msg, mode, font=M5.Display.FONTS.DejaVu72, backgroundColor
 
   M5.Display.drawString(msg, x, y)
 
-def printText(msg, x, y, font=None, backgroundColor=M5.Display.COLOR.BLACK, textColor=DARKGREY, rotate=1, silent=False):
-  M5.Display.setRotation(rotate)  
+def printText(msg, x, y, font=None, backgroundColor=M5.Display.COLOR.BLACK, textColor=DARKGREY, rotate=-1, silent=False):
+  if rotate > 0:
+    M5.Display.setRotation(rotate)  
     
   if font != None:       
     M5.Display.setFont(font)
@@ -316,8 +317,6 @@ def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=Fals
       if not useLock and not drawScreenLock.locked():
         locked = drawScreenLock.acquire()
       if locked or useLock:
-        rotate = 1
-        if mode >= 4: rotate = 3
         M5.Display.setFont(M5.Display.FONTS.DejaVu72)  
         M5.Display.setTextSize(3)
         w = M5.Display.textWidth(timeStr)
@@ -326,7 +325,7 @@ def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=Fals
           f = M5.Display.fontHeight()
           wp = M5.Display.textWidth("00:00:00")
           M5.Display.fillRect(int((SCREEN_WIDTH-wp)/2), y, wp, f, M5.Display.COLOR.BLACK)
-        printText(timeStr, int((SCREEN_WIDTH-w)/2), y, silent=silent, rotate=rotate)  
+        printText(timeStr, int((SCREEN_WIDTH-w)/2), y, silent=silent)  
         M5.Display.setTextSize(1)
         if not useLock and locked:
           drawScreenLock.release()
@@ -472,7 +471,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
       if batteryLevel <= 20: textcolor=RED
       elif batteryLevel <= 50: textcolor=ORANGE
       else: textcolor=DARKGREY 
-      printText(batteryLevelStr, SCREEN_WIDTH-w-20, y, rotate=rotate, font=M5.Display.FONTS.DejaVu40, textColor=textcolor)
+      printText(batteryLevelStr, SCREEN_WIDTH-w-20, y, font=M5.Display.FONTS.DejaVu40, textColor=textcolor)
       b = y-40
       nb = int(b/100*batteryLevel)
       #if nb<20: nb=20
@@ -501,13 +500,13 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        M5.Display.fillRect(x, y, M5.Display.textWidth("8888")-40, f, M5.Display.COLOR.BLACK)
        drawSgv = True
     if drawSgv or "sgvStr" not in prevStr:  
-       printText(sgvStr, x, y, textColor=backgroundColor, rotate=rotate)
+       printText(sgvStr, x, y, textColor=backgroundColor)
     M5.Display.setTextSize(1)
     
     ly = y+f-100
     if drawSgv or "sgvStr" not in prevStr:  
        sgvLabelStr = "mg/dL"  
-       printText(sgvLabelStr, x+w, ly, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
+       printText(sgvLabelStr, x+w, ly, font=M5.Display.FONTS.DejaVu40)
     
     prevStr["sgvStr"] = sgvStr
     prevStr["sgvStrColor"] = backgroundColor
@@ -532,7 +531,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
          M5.Display.fillRect(fx, y, M5.Display.textWidth(prevStr["sgvDiffStr"]), f+5, M5.Display.COLOR.BLACK)
          drawSgvDiff = True
     if drawSgvDiff or "sgvDiffStr" not in prevStr:  
-       printText(sgvDiffStr, x, y+20, textColor=textColor, rotate=rotate)
+       printText(sgvDiffStr, x, y+20, textColor=textColor)
     M5.Display.setTextSize(1)
     lx = x
     prevStr["sgvDiffStr"] = sgvDiffStr
@@ -565,7 +564,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        M5.Display.fillRect(fx, ly, M5.Display.textWidth(prevStr["dateStr"]), M5.Display.fontHeight(), M5.Display.COLOR.BLACK)
        drawDateStr = True
     if drawDateStr or "dateStr" not in prevStr:  
-       printText(dateStr, x, ly, textColor=textColor, rotate=rotate)  
+       printText(dateStr, x, ly, textColor=textColor)  
     prevStr["dateStr"] = dateStr
 
     y += f+55
@@ -580,8 +579,8 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     y = int(y+(SCREEN_HEIGHT-y-f)/2) + 5
     fy = int(y+(SCREEN_HEIGHT-y)/2)-20 - 5
     if "tempStr" not in prevStr or prevStr["tempStr"] != tempStr:
-       printText(tempStr, 20, y, rotate=rotate)
-       printText("C", 20+w, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
+       printText(tempStr, 20, y)
+       printText("C", 20+w, fy, font=M5.Display.FONTS.DejaVu40)
     prevStr["tempStr"] = tempStr
 
     #draw pressureStr
@@ -594,16 +593,16 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        M5.Display.fillRect(fx, y, M5.Display.textWidth(prevPressureStr), f, M5.Display.COLOR.BLACK)
        drawPressure = True
     if "pressureStr" not in prevStr or drawPressure:   
-       printText(pressureStr, int((SCREEN_WIDTH-w)/2)-60, y, rotate=rotate)
-       printText("hPa", int((SCREEN_WIDTH-w)/2)-60+w, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
+       printText(pressureStr, int((SCREEN_WIDTH-w)/2)-60, y)
+       printText("hPa", int((SCREEN_WIDTH-w)/2)-60+w, fy, font=M5.Display.FONTS.DejaVu40)
     prevStr["pressureStr"] = pressureStr
 
     #draw humidityStr
     M5.Display.setFont(M5.Display.FONTS.DejaVu72)
     w = M5.Display.textWidth(humidityStr)
     if "humidityStr" not in prevStr or prevStr["humidityStr"] != humidityStr:
-       printText(humidityStr, SCREEN_WIDTH-w-20-90, y, rotate=rotate)
-       printText("%h", SCREEN_WIDTH-20-90, fy, font=M5.Display.FONTS.DejaVu40, rotate=rotate)
+       printText(humidityStr, SCREEN_WIDTH-w-20-90, y)
+       printText("%h", SCREEN_WIDTH-20-90, fy, font=M5.Display.FONTS.DejaVu40)
     prevStr["humidityStr"] = humidityStr
 
     if firstRun: firstRun = False
