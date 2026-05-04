@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glucose Monitoring Configuration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .form-container {
+            background: #ffffff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            margin: 20px;
+        }
+
+        .form-container h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .form-container h3 {
+            text-align: center;
+            margin: 15px;
+            color: #A0A0A0;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .label-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .form-group label {
+            font-weight: bold;
+        }
+
+        .toggle-link {
+            font-size: 0.8em;
+            color: #007BFF;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .form-group input, 
+        .form-group select {
+            width: 95%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .error-message {
+            color: #d9534f;
+            font-size: 0.85em;
+            margin-top: 5px;
+            display: block;
+            min-height: 1em;
+        }
+
+        .form-group input.invalid {
+            border-color: #d9534f;
+        }
+
+        .form-group input[type="number"]::-webkit-inner-spin-button, 
+        .form-group input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .form-container button[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            background-color: #007BFF;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .form-container button[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+
+        .wifi-entry {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+        .remove-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 5px;
+        }
+        .add-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        
+    </style>
+    <script> 
+        function toggleVisibility(inputId, anchor) {
+            const field = document.getElementById(inputId);
+            if (field.type === "password") {
+                field.type = "text";
+                anchor.textContent = "Hide";
+            } else {
+                field.type = "password";
+                anchor.textContent = "Show";
+            }
+        }
+
+        function showError(fieldId, message) {
+            const errorSpan = document.getElementById(fieldId + '-error');
+            const inputField = document.getElementById(fieldId);
+            if (errorSpan) {
+                errorSpan.textContent = message;
+            }
+            if (inputField) {
+                inputField.classList.add('invalid');
+            }
+        }
+
+        function clearErrors() {
+            const errorSpans = document.querySelectorAll('.error-message');
+            errorSpans.forEach(span => span.textContent = '');
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(input => input.classList.remove('invalid'));
+        }
+
+        function addWifiEntry(ssid = '', password = '') {
+            const container = document.getElementById('wifi-container');
+            const index = container.querySelectorAll('.wifi-entry').length;
+            const div = document.createElement('div');
+            div.className = 'wifi-entry';
+            const passId = `wifi_password_${Date.now()}_${index}`;
+            
+            div.innerHTML = `
+                <div class="form-group">
+                    <label>Wifi SSID</label>
+                    <input type="text" name="ssid" placeholder="Your WiFi network SSID">
+                </div>
+                <div class="form-group">
+                    <div class="label-wrapper">
+                        <label>Wifi Password</label>
+                        <span class="toggle-link" onclick="toggleVisibility('${passId}', this)">Show</span>
+                    </div>
+                    <input type="password" id="${passId}" name="wifi_password" placeholder="Your WiFi network Password">
+                </div>
+                <button type="button" class="remove-btn" onclick="this.parentElement.remove()">Remove Network</button>
+            `;
+            // Safely set values to avoid HTML breaking on special characters
+            div.querySelector('input[name="ssid"]').value = ssid;
+            div.querySelector('input[name="wifi_password"]').value = password;
+            
+            container.appendChild(div);
+        }
+
+        function validateForm(event) {
+            clearErrors();
+            let isValid = true;
+
+            // Check WiFi entries
+            const ssids = document.querySelectorAll('input[name="ssid"]');
+            if (ssids.length === 0) {
+                alert('At least one WiFi network is required.');
+                isValid = false;
+            } else {
+                ssids.forEach(input => {
+                    if (!input.value.trim()) {
+                        input.classList.add('invalid');
+                        isValid = false;
+                    }
+                });
+            }
+
+            const otherFields = [
+                'api-endpoint', 'api-token', 'emergencyMin', 'min', 'max', 'emergencyMax',
+                'locale', 'timezone', 'beeperStartTime', 'beeperEndTime'
+            ];
+
+            // Required field check for others
+            otherFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field && !field.value.trim()) {
+                    showError(fieldId, 'This field cannot be empty.');
+                    isValid = false;
+                }
+            });
+
+            const emergencyMinField = document.getElementById('emergencyMin');
+            const minField = document.getElementById('min');
+            const maxField = document.getElementById('max');
+            const emergencyMaxField = document.getElementById('emergencyMax');
+            const startTimeField = document.getElementById('beeperStartTime');
+            const endTimeField = document.getElementById('beeperEndTime');
+            const timezoneField = document.getElementById('timezone');
+
+            if (!emergencyMinField || !minField || !maxField || !emergencyMaxField) {
+                 if (!isValid) event.preventDefault();
+                 return isValid;
+            }
+
+            const emergencyMinValue = parseInt(emergencyMinField.value, 10);
+            const minValue = parseInt(minField.value, 10);
+            const maxValue = parseInt(maxField.value, 10);
+            const emergencyMaxValue = parseInt(emergencyMaxField.value, 10);
+
+            // Range Logic Checks
+            if (emergencyMinValue <= 30) {
+                showError('emergencyMin', 'Must be greater than 30.');
+                isValid = false;
+            }
+
+            if (minValue <= emergencyMinValue) {
+                showError('min', 'Must be greater than Emergency Min.');
+                isValid = false;
+            }
+
+            if (maxValue <= minValue) {
+                showError('max', 'Must be greater than Min.');
+                isValid = false;
+            }
+
+            if (emergencyMaxValue <= maxValue) {
+                showError('emergencyMax', 'Must be greater than Max.');
+                isValid = false;
+            }
+
+            if (maxValue <= 100) {
+                showError('max', 'Max value must be greater than 100.');
+                isValid = false;
+            }
+
+            // Regex Checks
+            const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+            if (startTimeField.value && !timeRegex.test(startTimeField.value)) {
+                showError('beeperStartTime', 'Use format HH:MM:SS.');
+                isValid = false;
+            }
+
+            if (endTimeField.value && !timeRegex.test(endTimeField.value)) {
+                showError('beeperEndTime', 'Use format HH:MM:SS.');
+                isValid = false;
+            }
+
+            const timezoneRegex = /^([+-])([0-9]|0[0-9]|1[0-2]):([0-5][0-9])$/;
+            const timezone = timezoneField.value;
+            const match = timezone.match(timezoneRegex);
+
+            if (!match) {
+                showError('timezone', 'Must be between -12:00 and +12:00 (e.g. +02:00).');
+                isValid = false;
+            } else {
+                const hours = parseInt(match[2], 10);
+                const minutes = parseInt(match[3], 10);
+                if (hours > 12 || (hours === 12 && minutes > 0)) {
+                    showError('timezone', 'Range exceeded (-12:00 to 12:00).');
+                    isValid = false;
+                }
+            }
+            
+            if (!isValid) {
+                event.preventDefault();
+            }
+            return isValid;
+        }
+    </script>
+</head>
+<body>
+    <div class="form-container">
+        <h1>Glucose Monitoring Configuration</h1>
+        <form onsubmit="return validateForm(event)" method="post" action="/config">
+            
+            <h3>WiFi Settings</h3>
+            <div id="wifi-container">
+                <!-- WiFi entries will be injected here -->
+            </div>
+            <button type="button" class="add-btn" onclick="addWifiEntry()">+ Add Network</button>
+
+            <h3>API Settings</h3>
+            
+            <div class="form-group">
+                <label for="api-endpoint">API Endpoint URL</label>
+                <input type="text" id="api-endpoint" name="api-endpoint" value="{{api-endpoint}}">
+                <span id="api-endpoint-error" class="error-message"></span>
+            </div>
+
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="api-token">API Token</label>
+                    <span class="toggle-link" onclick="toggleVisibility('api-token', this)">Show</span>
+                </div>
+                <input type="password" id="api-token" name="api-token" value="{{api-token}}" placeholder="Your API Token">
+                <span id="api-token-error" class="error-message"></span>
+            </div>
+            
+            <h3>Glucose Level Settings</h3>
+
+            <div class="form-group">
+                <label for="emergencyMin">Glucose low Emergency level</label>
+                <input type="number" id="emergencyMin" name="emergencyMin" value="{{emergencyMin}}">
+                <span id="emergencyMin-error" class="error-message"></span>
+            </div>
+
+            <div class="form-group">
+                <label for="min">Glucose minimal level</label>
+                <input type="number" id="min" name="min" value="{{min}}">
+                <span id="min-error" class="error-message"></span>
+            </div>
+
+            <div class="form-group">
+                <label for="max">Glucose maximum level</label>
+                <input type="number" id="max" name="max" value="{{max}}">
+                <span id="max-error" class="error-message"></span>
+            </div>
+
+            <div class="form-group">
+                <label for="emergencyMax">Glucose high Emergency level</label>
+                <input type="number" id="emergencyMax" name="emergencyMax" value="{{emergencyMax}}">
+                <span id="emergencyMax-error" class="error-message"></span>
+            </div>
+
+            <h3>Locale and Timezone Settings</h3>
+
+            <div class="form-group">
+                <label for="locale">Locale</label>
+                <input type="text" id="locale" name="locale" value="">
+                <span id="locale-error" class="error-message"></span>
+            </div>
+
+            <div class="form-group">
+                <label for="timezone">GMT timezone difference (+/-HH:MM)</label>
+                <input type="text" id="timezone" name="timezone" value="{{timezone}}" placeholder="+02:00">
+                <span id="timezone-error" class="error-message"></span>
+            </div>
+            
+            <h3>Beeper Settings</h3>
+
+            <div class="form-group">
+                <label for="beeper">Use Beeper</label>
+                <select id="beeper" name="beeper">
+                    <option value="1" {{beeper_enabled}}>Enabled</option>
+                    <option value="0" {{beeper_disabled}}>Disabled</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="beeperStartTime">Beeper Start Time</label>
+                <input type="time" id="beeperStartTime" name="beeperStartTime" value="{{beeperStartTime}}" step="1">
+                <span id="beeperStartTime-error" class="error-message"></span>
+            </div>
+
+            <div class="form-group">
+                <label for="beeperEndTime">Beeper End Time</label>
+                <input type="time" id="beeperEndTime" name="beeperEndTime" value="{{beeperEndTime}}" step="1">
+                <span id="beeperEndTime-error" class="error-message"></span>
+            </div>
+
+            <input type="hidden" id="oldData" name="oldData" value="15">
+            <input type="hidden" id="oldDataEmergenc" name="oldDataEmergenc" value="1440">
+
+            <button type="submit">Save Configuration</button>
+        </form>
+    </div>
+    <script type="application/json" id="wifi-data">{{wifi_json}}</script>
+    <script>
+        const getLanguage = () => navigator.userLanguage || (navigator.languages && navigator.languages.length && navigator.languages[0]) || navigator.language || navigator.browserLanguage || navigator.systemLanguage || 'en-US';
+        document.getElementById('locale').value = getLanguage();
+
+        // Initialize WiFi entries
+        let initialWifi = [];
+        try {
+            const data = document.getElementById('wifi-data').textContent;
+            if (data && data.trim()) {
+                initialWifi = JSON.parse(data);
+            }
+        } catch (e) {
+            console.error("Error parsing WiFi config", e);
+        }
+
+        if (Array.isArray(initialWifi) && initialWifi.length > 0) {
+            for (var i = 0; i < initialWifi.length; i++) {
+                addWifiEntry(initialWifi[i].ssid, initialWifi[i].password);
+            }
+        } else {
+            addWifiEntry();
+        }
+    </script>
+</body>
+</html>
