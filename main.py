@@ -620,7 +620,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
 
 # ------
 
-def connectToWifi():
+def connectToWifi(printText = True):
   global wifi_ssid, wifi_password, config, mode
   nic = network.WLAN(network.STA_IF)
   nic.active(True)
@@ -628,7 +628,8 @@ def connectToWifi():
   if nic.isconnected():
     return True
 
-  printCenteredText("Scanning wifi...", mode, backgroundColor=DARKGREY)
+  if printText == True:
+    printCenteredText("Scanning wifi...", mode, backgroundColor=DARKGREY)
   
   wifi_password = None
   wifi_ssid = None  
@@ -657,7 +658,8 @@ def connectToWifi():
       time.sleep(1)
 
   if wifi_password != None:
-    printCenteredText("Connecting wifi...", mode, backgroundColor=DARKGREY) 
+    if printText == True:
+       printCenteredText("Connecting wifi...", mode, backgroundColor=DARKGREY) 
     print('Connecting wifi ' + wifi_ssid)
     nic.connect(wifi_ssid, wifi_password)
     # Wait up to 10 seconds for connection
@@ -679,7 +681,7 @@ def backendMonitor():
       # Check and reconnect WiFi if needed
       if not network.WLAN(network.STA_IF).isconnected():
         print("WiFi connection lost. Attempting to reconnect...")
-        if not connectToWifi():
+        if not connectToWifi(printText = False):
             print("Reconnection failed. Retrying in 10s...")
             time.sleep(10)
             continue
