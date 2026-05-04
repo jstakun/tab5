@@ -9,6 +9,8 @@ import uos
 import ujson
 import sys
 import os
+import machine
+import ubinascii
 
 SSID = 'AP-M5DiabConf'
 PASSWORD = '123456789'
@@ -31,23 +33,78 @@ DEFAULT_CONFIG = {
     "beeperStartTime": "00:00:00",
     "beeperEndTime": "23:59:59",
     "oldData": 15,
-    "oldDataEmergenc": 1440
+    "oldDataEmergenc": 1440,
+    "wifi": []
 }
 
 ipconfig = None
 
+def xor_data(data):
+  try:
+    key = machine.unique_id()
+  except:
+    key = b'fallback_key'
+  
+  if isinstance(data, str):
+    data = data.encode()
+  
+  l_key = len(key)
+  res = bytearray(len(data))
+  for i in range(len(data)):
+    res[i] = data[i] ^ key[i % l_key]
+  return res
+
+def encode_val(val):
+  if not val: return ""
+  try:
+    return ubinascii.hexlify(xor_data(val)).decode()
+  except:
+    return val
+
+def decode_val(val):
+  if not val: return ""
+  try:
+    return xor_data(ubinascii.unhexlify(val)).decode()
+  except:
+    return val
+
 def saveConfigFile(config):
   try:
+    # Deep copy to avoid mutating original config
+    encoded_config = ujson.loads(ujson.dumps(config))
+    
+    if "api-token" in encoded_config:
+      encoded_config["api-token"] = encode_val(encoded_config["api-token"])
+      
+    if "wifi" in encoded_config:
+      for entry in encoded_config["wifi"]:
+        if "password" in entry:
+          entry["password"] = encode_val(entry["password"])
+
     with open(CONFIG_FILE, 'w') as confFile:
-      ujson.dump(config, confFile) 
+      ujson.dump(encoded_config, confFile) 
     print("Successfully saved config file")
   except Exception as e:
     sys.print_exception(e) 
 
 def readConfigFile():
   try:
-    with open(CONFIG_FILE, 'r') as confFile:
-       return ujson.loads(confFile.read())
+    config = {}
+    if CONFIG_FILE in os.listdir():
+      with open(CONFIG_FILE, 'r') as confFile:
+         config = ujson.loads(confFile.read())
+    else:
+      return DEFAULT_CONFIG
+
+    # Decode sensitive data
+    if "api-token" in config:
+      config["api-token"] = decode_val(config["api-token"])
+      
+    for entry in config["wifi"]:
+      if "password" in entry:
+        entry["password"] = decode_val(entry["password"])
+          
+    return config
   except Exception as e:
     sys.print_exception(e) 
     return DEFAULT_CONFIG    
@@ -70,27 +127,26 @@ def readHtmlConfigFile(filename):
     with open(filename, 'r') as htmlFile:
       html = htmlFile.read()
     config = readConfigFile()
-    ignore = ["config","brightness","screen-mode","beeper","locale"]
-    if config["beeper"] == 0:
+    
+    ignore = ["config","brightness","screen-mode","beeper","locale", "wifi"]
+    if config.get("beeper") == 0:
       config["beeper_disabled"] = "selected"
       config["beeper_enabled"] = ""
-    elif config["beeper"] == 1:
+    else:
       config["beeper_enabled"] = "selected"
       config["beeper_disabled"] = ""    
-    ssid = ""
-    wifi_password = ""
+    
+    # Standard replacements
     for key, value in config.items():
       if key in ignore:
         continue
       placeholder = "{{" + key + "}}"
       if placeholder in html:
         html = html.replace(placeholder, str(value))
-      elif isinstance(value, str) and value != "":
-        print("Wifi placeholder: " + placeholder)
-        ssid = key
-        wifi_password = value
-    html = html.replace("{{ssid}}", ssid)
-    html = html.replace("{{wifi_password}}", wifi_password)  
+    
+    wifi_json = ujson.dumps(config.get("wifi", []))
+    html = html.replace("{{wifi_json}}", wifi_json)
+    
     return html
   except Exception as e:
     sys.print_exception(e)
@@ -152,6 +208,9 @@ def open_access_point(successCallback):
     contentStr = request.decode()
     print('Content = %s' % contentStr)
     splittedRequest = contentStr.split()
+    if not splittedRequest:
+        conn.close()
+        continue
     #rmethod = splittedRequest[0]
     rurl = splittedRequest[1]
   
@@ -164,21 +223,35 @@ def open_access_point(successCallback):
       configParams = splittedRequest[len(splittedRequest)-1]
       print('Config params: ' + configParams) 
       entries = configParams.split('&') 
-      wifi_ssid = None
-      wifi_password = None
+      
+      wifi_ssids = []
+      wifi_passwords = []
       config = {}
+      
       for entry in entries:
-        [k,v] = entry.split('=')
+        parts = entry.split('=')
+        if len(parts) != 2: continue
+        k = parts[0]
+        v = parts[1]
         value = unquote(v).decode()
-        if k == 'ssid': wifi_ssid = value
-        elif k == 'wifi_password': wifi_password = value  
-        elif value.isdigit(): value = int(value) 
-        if k != 'ssid' and k != 'wifi_password':
-          config[k] = value
-          print("Saved config parameter " + k)
-      #Encode wifi password
-      config[wifi_ssid] = wifi_password
-      print("Saved config parameter " + wifi_ssid)
+        if k == 'ssid':
+            if value: wifi_ssids.append(value)
+        elif k == 'wifi_password':
+            wifi_passwords.append(value)
+        else:
+            if value.isdigit(): value = int(value) 
+            config[k] = value
+            print("Saved config parameter " + k)
+            
+      # Reconstruct wifi list
+      config["wifi"] = []
+      for i in range(len(wifi_ssids)):
+          config["wifi"].append({
+              "ssid": wifi_ssids[i],
+              "password": wifi_passwords[i] if i < len(wifi_passwords) else ""
+          })
+          print("Saved wifi: " + wifi_ssids[i])
+          
       config[CONFIG] = 1
       config["brightness"] = 1
       config["screen-mode"] = 0

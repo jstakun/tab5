@@ -99,6 +99,34 @@
         .form-container button[type="submit"]:hover {
             background-color: #0056b3;
         }
+
+        .wifi-entry {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+        .remove-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 5px;
+        }
+        .add-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 20px;
+        }
         
     </style>
     <script> 
@@ -131,17 +159,59 @@
             inputs.forEach(input => input.classList.remove('invalid'));
         }
 
+        function addWifiEntry(ssid = '', password = '') {
+            const container = document.getElementById('wifi-container');
+            const index = container.querySelectorAll('.wifi-entry').length;
+            const div = document.createElement('div');
+            div.className = 'wifi-entry';
+            const passId = `wifi_password_${Date.now()}_${index}`;
+            
+            div.innerHTML = `
+                <div class="form-group">
+                    <label>Wifi SSID</label>
+                    <input type="text" name="ssid" placeholder="Your WiFi network SSID">
+                </div>
+                <div class="form-group">
+                    <div class="label-wrapper">
+                        <label>Wifi Password</label>
+                        <span class="toggle-link" onclick="toggleVisibility('${passId}', this)">Show</span>
+                    </div>
+                    <input type="password" id="${passId}" name="wifi_password" placeholder="Your WiFi network Password">
+                </div>
+                <button type="button" class="remove-btn" onclick="this.parentElement.remove()">Remove Network</button>
+            `;
+            // Safely set values to avoid HTML breaking on special characters
+            div.querySelector('input[name="ssid"]').value = ssid;
+            div.querySelector('input[name="wifi_password"]').value = password;
+            
+            container.appendChild(div);
+        }
+
         function validateForm(event) {
             clearErrors();
             let isValid = true;
 
-            const fields = [
-                'ssid', 'wifi_password', 'api-endpoint', 'api-token', 'emergencyMin', 'min', 'max', 'emergencyMax',
+            // Check WiFi entries
+            const ssids = document.querySelectorAll('input[name="ssid"]');
+            if (ssids.length === 0) {
+                alert('At least one WiFi network is required.');
+                isValid = false;
+            } else {
+                ssids.forEach(input => {
+                    if (!input.value.trim()) {
+                        input.classList.add('invalid');
+                        isValid = false;
+                    }
+                });
+            }
+
+            const otherFields = [
+                'api-endpoint', 'api-token', 'emergencyMin', 'min', 'max', 'emergencyMax',
                 'locale', 'timezone', 'beeperStartTime', 'beeperEndTime'
             ];
 
-            // Required field check
-            fields.forEach(fieldId => {
+            // Required field check for others
+            otherFields.forEach(fieldId => {
                 const field = document.getElementById(fieldId);
                 if (field && !field.value.trim()) {
                     showError(fieldId, 'This field cannot be empty.');
@@ -156,6 +226,11 @@
             const startTimeField = document.getElementById('beeperStartTime');
             const endTimeField = document.getElementById('beeperEndTime');
             const timezoneField = document.getElementById('timezone');
+
+            if (!emergencyMinField || !minField || !maxField || !emergencyMaxField) {
+                 if (!isValid) event.preventDefault();
+                 return isValid;
+            }
 
             const emergencyMinValue = parseInt(emergencyMinField.value, 10);
             const minValue = parseInt(minField.value, 10);
@@ -229,21 +304,10 @@
         <form onsubmit="return validateForm(event)" method="post" action="/config">
             
             <h3>WiFi Settings</h3>
-            
-            <div class="form-group">
-                <label for="ssid">Wifi SSID</label>
-                <input type="text" id="ssid" name="ssid" value="{{ssid}}" placeholder="Your WiFi network SSID" autofocus>
-                <span id="ssid-error" class="error-message"></span>
+            <div id="wifi-container">
+                <!-- WiFi entries will be injected here -->
             </div>
-
-            <div class="form-group">
-                <div class="label-wrapper">
-                    <label for="wifi_password">Wifi Password</label>
-                    <span class="toggle-link" onclick="toggleVisibility('wifi_password', this)">Show</span>
-                </div>
-                <input type="password" id="wifi_password" name="wifi_password" value="{{wifi_password}}" placeholder="Your WiFi network Password">
-                <span id="wifi_password-error" class="error-message"></span>
-            </div>
+            <button type="button" class="add-btn" onclick="addWifiEntry()">+ Add Network</button>
 
             <h3>API Settings</h3>
             
@@ -330,9 +394,29 @@
             <button type="submit">Save Configuration</button>
         </form>
     </div>
+    <script type="application/json" id="wifi-data">{{wifi_json}}</script>
     <script>
         const getLanguage = () => navigator.userLanguage || (navigator.languages && navigator.languages.length && navigator.languages[0]) || navigator.language || navigator.browserLanguage || navigator.systemLanguage || 'en-US';
         document.getElementById('locale').value = getLanguage();
+
+        // Initialize WiFi entries
+        let initialWifi = [];
+        try {
+            const data = document.getElementById('wifi-data').textContent;
+            if (data && data.trim()) {
+                initialWifi = JSON.parse(data);
+            }
+        } catch (e) {
+            console.error("Error parsing WiFi config", e);
+        }
+
+        if (Array.isArray(initialWifi) && initialWifi.length > 0) {
+            for (var i = 0; i < initialWifi.length; i++) {
+                addWifiEntry(initialWifi[i].ssid, initialWifi[i].password);
+            }
+        } else {
+            addWifiEntry();
+        }
     </script>
 </body>
 </html>

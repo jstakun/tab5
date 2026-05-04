@@ -566,8 +566,8 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     x = lx + int((SCREEN_WIDTH-lx-w)/2)
     drawDateStr = False
     if "dateStr" in prevStr and prevStr["dateStr"] != dateStr:
-       fx += int((SCREEN_WIDTH-fx-M5.Display.textWidth(prevStr["dateStr"]))/2)
-       M5.Display.fillRect(fx, ly, M5.Display.textWidth(prevStr["dateStr"]), M5.Display.fontHeight(), M5.Display.COLOR.BLACK)
+       fx += int((SCREEN_WIDTH-fx-M5.Display.textWidth(prevStr["dateStr"])-50)/2)
+       M5.Display.fillRect(fx, ly, M5.Display.textWidth(prevStr["dateStr"])+50, M5.Display.fontHeight(), M5.Display.COLOR.BLACK)
        drawDateStr = True
     if drawDateStr or "dateStr" not in prevStr:  
        printText(dateStr, x, ly, textColor=textColor)  
@@ -620,27 +620,67 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
 
 # ------
 
+def connectToWifi():
+  global wifi_ssid, wifi_password, config, mode
+  nic = network.WLAN(network.STA_IF)
+  nic.active(True)
+  
+  if nic.isconnected():
+    return True
+
+  printCenteredText("Scanning wifi...", mode, backgroundColor=DARKGREY)
+  
+  wifi_password = None
+  wifi_ssid = None  
+  
+  retry = 0
+  while wifi_password == None and retry < 10:
+    try: 
+      nets = nic.scan()
+      for result in nets:
+        security_type = result[4]
+        is_hidden = result[5]
+        if security_type > 0 and is_hidden == 0:
+          temp_ssid = result[0].decode()
+          for wifi_entry in config.get("wifi", []):
+            if wifi_entry.get("ssid") == temp_ssid:
+              wifi_ssid = temp_ssid
+              wifi_password = wifi_entry.get("password")
+              break
+        if wifi_password != None: break
+    except Exception as e:
+      sys.print_exception(e)
+      saveError(e)
+    
+    if wifi_password == None:
+      retry += 1
+      time.sleep(1)
+
+  if wifi_password != None:
+    printCenteredText("Connecting wifi...", mode, backgroundColor=DARKGREY) 
+    print('Connecting wifi ' + wifi_ssid)
+    nic.connect(wifi_ssid, wifi_password)
+    # Wait up to 10 seconds for connection
+    for _ in range(40):
+      if nic.isconnected():
+        print("WiFi connected.")
+        return True
+      time.sleep(0.25)
+  
+  return False
+
 def backendMonitor():
   global response, API_ENDPOINT, API_TOKEN, LOCALE, TIMEZONE, startTime, sgvDict, secondsDiff, backendResponse, mode, wifi_ssid, wifi_password
   lastid = -1
   retry_count = 0
-  nic = network.WLAN(network.STA_IF)
   
   while True:
     try:
       # Check and reconnect WiFi if needed
-      if not nic.isconnected():
-        print(f"WiFi connection lost. Reconnecting to {wifi_ssid}...")
-        nic.connect(wifi_ssid, wifi_password)
-        # Wait up to 15 seconds for reconnection
-        for _ in range(30):
-          if nic.isconnected():
-            print("WiFi reconnected.")
-            break
-          time.sleep(0.5)
-        
-        if not nic.isconnected():
-            print("WiFi reconnection failed. Retrying in 10s...")
+      if not network.WLAN(network.STA_IF).isconnected():
+        print("WiFi connection lost. Attempting to reconnect...")
+        if not connectToWifi():
+            print("Reconnection failed. Retrying in 10s...")
             time.sleep(10)
             continue
 
@@ -702,8 +742,11 @@ def backendMonitor():
       
       if retry_count > 5: # Reset WiFi after ~10 consecutive failures
         print("Too many failures. Resetting WiFi...")
+        nic = network.WLAN(network.STA_IF)
         nic.disconnect()
-        time.sleep(2)
+        nic.active(False)
+        time.sleep(1)
+        nic.active(True)
         retry_count = 0 
         
       time.sleep(wait_time)
@@ -992,40 +1035,10 @@ else:
 # from here code runs only if application is properly configured
 
 try:
-  nic = network.WLAN(network.STA_IF)
-  nic.active(True)
-
-  printCenteredText("Scanning wifi...", mode, backgroundColor=DARKGREY)
-
-  global wifi_password, wifi_ssid
-  wifi_password = None
-  wifi_ssid = None  
-  while wifi_password == None:
-    try: 
-      nets = nic.scan()
-      for result in nets:
-        security_type = result[4]
-        is_hidden = result[5]
-        if security_type > 0 and is_hidden == 0: #filter out hidden and open networks
-          wifi_ssid = result[0].decode()
-          if wifi_ssid in config: 
-            wifi_password = config[wifi_ssid]
-          else:
-            print('No password for wifi ' + wifi_ssid + ' found')  
-        if wifi_password != None: break
-    except Exception as e:
-      sys.print_exception(e)
-      saveError(e)
-      printCenteredText("Wifi not found!", mode, backgroundColor=RED, clear=True)  
-    if wifi_password == None: time.sleep(1)
-
-  printCenteredText("Connecting wifi...", mode, backgroundColor=DARKGREY) 
-  nic.connect(wifi_ssid, wifi_password)
-  print('Connecting wifi ' + wifi_ssid)
-  while not nic.isconnected():
-    print(".", end="")
-    time.sleep(0.25)
-  print("")  
+  if not connectToWifi():
+    printCenteredText("Wifi not found!", mode, backgroundColor=RED, clear=True)
+    time.sleep(5)
+    machine.reset()
 
   time_server = 'pool.ntp.org'
   printCenteredText("Setting time...", mode, backgroundColor=DARKGREY) 
