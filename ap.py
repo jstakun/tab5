@@ -70,7 +70,6 @@ def decode_val(val):
 
 def saveConfigFile(config):
   try:
-    # Deep copy to avoid mutating original config
     encoded_config = ujson.loads(ujson.dumps(config))
     
     if "api-token" in encoded_config:
@@ -96,7 +95,6 @@ def readConfigFile():
     else:
       return DEFAULT_CONFIG
 
-    # Decode sensitive data
     if "api-token" in config:
       config["api-token"] = decode_val(config["api-token"])
       
@@ -136,7 +134,6 @@ def readHtmlConfigFile(filename):
       config["beeper_enabled"] = "selected"
       config["beeper_disabled"] = ""    
     
-    # Standard replacements
     for key, value in config.items():
       if key in ignore:
         continue
@@ -243,7 +240,6 @@ def open_access_point(successCallback):
             config[k] = value
             print("Saved config parameter " + k)
             
-      # Reconstruct wifi list
       config["wifi"] = []
       for i in range(len(wifi_ssids)):
           config["wifi"].append({
