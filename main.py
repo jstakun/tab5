@@ -536,15 +536,16 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        sgvDiffColor = DARKGREY
        if not tooOld and not muchTooOld:
          fabsSgvDiff = math.fabs(sgvDiff)
-         if sgv < MIN:
+         if sgv <= EMERGENCY_MIN: 
+           sgvDiffColor = DARKGREEN if sgvDiff > 10 else RED
+         elif sgv >= EMERGENCY_MAX:
+           sgvDiffColor = DARKGREEN if sgvDiff < 10 else RED  
+         elif sgv < MIN:
            sgvDiffColor = DARKGREEN if sgvDiff > 0 else RED
          elif sgv > MAX:
            sgvDiffColor = DARKGREEN if sgvDiff < 0 else RED
          else:
-           sgvDiffColor = ORANGE if fabsSgvDiff >= 25 else DARKGREY
-
-         if sgv <= EMERGENCY_MIN or sgv >= EMERGENCY_MAX:
-           sgvDiffColor = RED
+           sgvDiffColor = ORANGE if fabsSgvDiff >= 30 else DARKGREY         
        printText(sgvDiffStr, x, y+20, textColor=sgvDiffColor)
     M5.Display.setTextSize(1)
     lx = x
