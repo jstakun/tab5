@@ -1,6 +1,7 @@
 #UiFlow2 https://uiflow-micropython.readthedocs.io/en/develop/
 
 import M5
+import gc
 import ntptime
 from hardware import WDT, I2C, Pin
 import machine
@@ -523,11 +524,6 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     M5.Display.setFont(M5.Display.FONTS.DejaVu72)  
     M5.Display.setTextSize(2)
     f = M5.Display.fontHeight()
-    textColor = DARKGREY
-    if not tooOld and not muchTooOld:
-       fabsSgvDiff = math.fabs(sgvDiff)
-       if fabsSgvDiff >= 10 and (sgv <= (MIN+10)) : textColor = RED
-       elif fabsSgvDiff >= 10 and (sgv >= (MAX-10)): textColor = ORANGE
     w = M5.Display.textWidth(sgvDiffStr)
     x = SCREEN_WIDTH - 20 - (2*radius) - gap - w
     drawSgvDiff = False
@@ -537,7 +533,19 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
          M5.Display.fillRect(fx, y, M5.Display.textWidth(prevStr["sgvDiffStr"]), f+5, M5.Display.COLOR.BLACK)
          drawSgvDiff = True
     if drawSgvDiff or "sgvDiffStr" not in prevStr:  
-       printText(sgvDiffStr, x, y+20, textColor=textColor)
+       sgvDiffColor = DARKGREY
+       if not tooOld and not muchTooOld:
+         fabsSgvDiff = math.fabs(sgvDiff)
+         if sgv < MIN:
+           sgvDiffColor = DARKGREEN if sgvDiff > 0 else RED
+         elif sgv > MAX:
+           sgvDiffColor = DARKGREEN if sgvDiff < 0 else RED
+         else:
+           sgvDiffColor = ORANGE if fabsSgvDiff >= 25 else DARKGREY
+
+         if sgv <= EMERGENCY_MIN or sgv >= EMERGENCY_MAX:
+           sgvDiffColor = RED
+       printText(sgvDiffStr, x, y+20, textColor=sgvDiffColor)
     M5.Display.setTextSize(1)
     lx = x
     prevStr["sgvDiffStr"] = sgvDiffStr

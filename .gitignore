@@ -5,3 +5,6 @@ uitest.py
 *.log
 improvements.md
 drawArrow.py
+typings/
+__pycache__/
+.vscode/
