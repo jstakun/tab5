@@ -342,6 +342,69 @@ def printLocaltime(mode, secondsDiff, localtime=None, useLock=False, silent=Fals
     sys.print_exception(e)
     saveError(e)
 
+def printBatteryLevel(useLock=False, silent=False):
+  global prevStr
+  try:
+    batteryLevel = getBatteryLevel()
+    if batteryLevel < 0: batteryLevel = 0 
+    elif batteryLevel > 100: batteryLevel = 100 
+    isCharging = M5.Power.isCharging()
+
+    if "batteryLevel" not in prevStr or "isCharging" not in prevStr or prevStr["batteryLevel"] != batteryLevel or prevStr.get("isCharging") != isCharging:
+      locked = False 
+      if not useLock and not drawScreenLock.locked():
+        locked = drawScreenLock.acquire()
+      
+      if locked or useLock:
+        batteryLevelStr = f"{batteryLevel}%"
+        M5.Display.setFont(M5.Display.FONTS.DejaVu40)  
+        M5.Display.setTextSize(1)
+        w = M5.Display.textWidth(batteryLevelStr) 
+        fh = M5.Display.fontHeight()
+        y = 170
+        wo = M5.Display.textWidth("100%")
+        
+        # Dynamically center indicator to the current text width
+        x = int(SCREEN_WIDTH - w/2 - 20 - 25/2)
+        
+        # Comprehensive clear: cover max possible area where text or indicator could be
+        leftmost_x = int(SCREEN_WIDTH - wo - 20 - 10) # 10 is margin for frame
+        M5.Display.fillRect(leftmost_x, 15, SCREEN_WIDTH - leftmost_x, y+fh-15+5, M5.Display.COLOR.BLACK)
+
+        if batteryLevel <= 20: textcolor=RED
+        elif batteryLevel <= 50: textcolor=ORANGE
+        else: textcolor=DARKGREY 
+        # Text remains right-aligned to SCREEN_WIDTH-20
+        printText(batteryLevelStr, SCREEN_WIDTH-w-20, y, font=M5.Display.FONTS.DejaVu40, textColor=textcolor, silent=silent)
+        
+        b = y-40
+        nb = int(b/100*batteryLevel)
+        if batteryLevel <= 20: color=RED
+        elif batteryLevel <= 50: color=ORANGE
+        else: color=DARKGREEN
+        
+        # Draw frame if charging and not full
+        if isCharging and batteryLevel < 100:
+          M5.Display.drawRect(x-5, 20-5, 25+10, b+10, DARKGREY)
+          M5.Display.drawRect(x-4, 20-4, 25+8, b+8, DARKGREY)
+        else:
+          # Clear frame area (redundant due to fillRect BLACK, but safe)
+          M5.Display.drawRect(x-5, 20-5, 25+10, b+10, M5.Display.COLOR.BLACK)
+          M5.Display.drawRect(x-4, 20-4, 25+8, b+8, M5.Display.COLOR.BLACK)
+          
+        # Draw battery bar (width 25)
+        M5.Display.fillRect(x, 20, 25, b, DARKGREY)
+        M5.Display.fillRect(x, 20+b-nb, 25, nb, color)
+        
+        if not useLock and locked:
+          drawScreenLock.release()
+      
+      prevStr["batteryLevel"] = batteryLevel
+      prevStr["isCharging"] = isCharging
+  except Exception as e:
+    sys.print_exception(e)
+    saveError(e)
+
 def drawScreen(newestEntry, noNetwork=False, clear=True):
   global response, mode, brightness, emergency, emergencyPause, MIN, MAX, EMERGENCY_MIN, EMERGENCY_MAX, startTime, rgbUnit, secondsDiff, OLD_DATA, OLD_DATA_EMERGENCY, envUnit, secondsDiff, humidityStr, pressureStr, tempStr, firstRun, prevStr
   
@@ -467,29 +530,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     printLocaltime(mode, secondsDiff, useLock=True)  
  
     #draw battery level 
-    if "batteryLevel" not in prevStr or prevStr["batteryLevel"] != batteryLevel:
-      batteryLevelStr = f"{batteryLevel}%"
-      M5.Display.setFont(M5.Display.FONTS.DejaVu40)  
-      M5.Display.setTextSize(1)
-      w = M5.Display.textWidth(batteryLevelStr) 
-      fh = M5.Display.fontHeight()
-      y = 170
-      wo = M5.Display.textWidth("100%")
-      M5.Display.fillRect(SCREEN_WIDTH-wo-20, 20, wo, y+fh, M5.Display.COLOR.BLACK)
-      if batteryLevel <= 20: textcolor=RED
-      elif batteryLevel <= 50: textcolor=ORANGE
-      else: textcolor=DARKGREY 
-      printText(batteryLevelStr, SCREEN_WIDTH-w-20, y, font=M5.Display.FONTS.DejaVu40, textColor=textcolor)
-      b = y-40
-      nb = int(b/100*batteryLevel)
-      #if nb<20: nb=20
-      if batteryLevel <= 20: color=RED
-      elif batteryLevel <= 50: color=ORANGE
-      else: color=DARKGREEN
-      x = int(SCREEN_WIDTH-w/2-20-25/2)
-      M5.Display.fillRect(x, 20, 25, b, DARKGREY)
-      M5.Display.fillRect(x, 20+b-nb, 25, nb, color)
-      prevStr["batteryLevel"] = batteryLevel
+    printBatteryLevel(useLock=True)
  
     M5.Display.setFont(M5.Display.FONTS.DejaVu72)  
     M5.Display.setTextSize(4)
@@ -537,9 +578,9 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        if not tooOld and not muchTooOld:
          fabsSgvDiff = math.fabs(sgvDiff)
          if sgv <= EMERGENCY_MIN: 
-           sgvDiffColor = DARKGREEN if sgvDiff > 10 else RED
+           sgvDiffColor = DARKGREEN if sgvDiff > 0 else RED
          elif sgv >= EMERGENCY_MAX:
-           sgvDiffColor = DARKGREEN if sgvDiff < 10 else RED  
+           sgvDiffColor = DARKGREEN if sgvDiff < 0 else RED  
          elif sgv < MIN:
            sgvDiffColor = DARKGREEN if sgvDiff > 0 else RED
          elif sgv > MAX:
@@ -904,6 +945,7 @@ def localtimeCallback(t):
   global shuttingDown, mode, secondsDiff, firstRun 
   if not shuttingDown:
     printLocaltime(mode, secondsDiff, silent=True, firstRun=firstRun)
+    printBatteryLevel(useLock=False, silent=True)
 
 def onTouchTap(saveConfig=False):
   global emergency, emergencyPause
