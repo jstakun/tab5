@@ -383,7 +383,7 @@ def printBatteryLevel(useLock=False, silent=False):
         else: color=DARKGREEN
         
         # Draw frame if charging 
-        if isCharging: # and batteryLevel < 100:
+        if isCharging and batteryLevel < 100:
           M5.Display.drawRect(x-5, 20-5, 25+10, b+10, DARKGREY)
           M5.Display.drawRect(x-4, 20-4, 25+8, b+8, DARKGREY)
         else:
@@ -839,6 +839,11 @@ def backendMonitorAdaptive():
     print("---------------------------")
 
 def backendMonitorContinuous():
+  """
+  Legacy continuous long-polling poller: Constantly keeps a pending request open
+  to the backend with BACKEND_TIMEOUT_MS, immediately retrying whenever the
+  connection closes or times out.
+  """
   global response, API_ENDPOINT, API_TOKEN, LOCALE, TIMEZONE, startTime, sgvDict, secondsDiff, backendResponse, mode, wifi_ssid, wifi_password
   lastid = -1
   retry_count = 0
@@ -922,6 +927,9 @@ def backendMonitorContinuous():
     print("---------------------------")
 
 def backendMonitor():
+  """
+  Main background monitor entrypoint. Calls backendMonitorAdaptive() by default.
+  """
   backendMonitorAdaptive()
 
 def setEmergencyrgbUnitColor(setBeepColorIndex, beepColor):
@@ -1209,7 +1217,7 @@ else:
 
 try:
   if not connectToWifi():
-    printCenteredText("Wifi not connected! Restarting in 10s...", mode, backgroundColor=RED, clear=True)
+    printCenteredText("Wifi not connected! Restarting...", mode, backgroundColor=RED, clear=True)
     time.sleep(10)
     machine.reset()
 
