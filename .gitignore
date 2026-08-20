@@ -1,5 +1,5 @@
 config.json
-screenlog.0
+screenlog.*
 dejavu96.vlw
 uitest.py
 *.log
