@@ -29,8 +29,11 @@ EMERGENCY_PAUSE_INTERVAL = 1800  #sec = 30 mins
 MODES = ["full_all", "full_date", "full_battery", "basic", "flip_full_all", "flip_full_date", "flip_full_battery", "chart", "flip_chart"]
 SGVDICT_FILE = 'sgvdict.txt'
 RESPONSE_FILE = 'response.json'
-BACKEND_TIMEOUT_SEC = 30 # 55 #max 60
-BACKEND_TIMEOUT_MS = BACKEND_TIMEOUT_SEC * 1000 #dont change
+POLL_INTERVAL_SEC = 60 # 1-minute interval for dateStr refresh
+REQUEST_TIMEOUT_SEC = 10 # Fast HTTP request timeout for dateStr refresh
+EXPECTED_INTERVAL_SEC = 300 # Expected SGV reading arrival interval (5 minutes)
+LEAD_TIME_SEC = 5 # Wake up 5s before expected arrival for targeted poll
+TARGET_TIMEOUT_SEC = 25 # Short wait timeout for arrival window request
 MAX_SAVED_ENTRIES = 10
 YEAR = 2025
 SCREEN_WIDTH = 1280
@@ -57,7 +60,7 @@ def getBatteryLevel():
   l = M5.Power.getBatteryLevel()
   ic = M5.Power.isCharging()
   c = M5.Power.getBatteryCurrent()
-  print(f"Voltage: {v}mV, Level: {l}%, Charging: {ic}, Current: {c}")
+  #print(f"Voltage: {v}mV, Level: {l}%, Charging: {ic}, Current: {c}")
   if 5800 < v < 8500 and abs(c) > 10:
     return l
   else:
@@ -613,10 +616,12 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
        textColor = RED
     w = M5.Display.textWidth(dateStr)
     x = lx + int((SCREEN_WIDTH-lx-w)/2)
+    fh = M5.Display.fontHeight()
     drawDateStr = False
     if "dateStr" in prevStr and prevStr["dateStr"] != dateStr:
-       fx += int((SCREEN_WIDTH-fx-M5.Display.textWidth(prevStr["dateStr"])-50)/2)
-       M5.Display.fillRect(fx, ly, M5.Display.textWidth(prevStr["dateStr"])+50, M5.Display.fontHeight(), M5.Display.COLOR.BLACK)
+       clear_x = max(0, lx - 20)
+       clear_w = SCREEN_WIDTH - clear_x - 10
+       M5.Display.fillRect(clear_x, ly - 5, clear_w, fh + 10, M5.Display.COLOR.BLACK)
        drawDateStr = True
     if drawDateStr or "dateStr" not in prevStr:  
        printText(dateStr, x, ly, textColor=textColor)  
@@ -717,22 +722,13 @@ def connectToWifi(printText = True):
         print("WiFi connected.")
         return True
       time.sleep(0.25)
-    
   return False
 
-def backendMonitorAdaptive():
-  """
-  Adaptive phase-locked poller: Predicts next reading time (every ~5 min),
-  sleeps until ~5s before arrival, and performs short long-poll requests (25s)
-  to minimize both request volume and connection wait duration.
-  """
+def backendMonitor():
   global response, API_ENDPOINT, API_TOKEN, LOCALE, TIMEZONE, startTime, sgvDict, secondsDiff, backendResponse, mode, wifi_ssid, wifi_password
   lastid = -1
   last_entry_time = -1
   retry_count = 0
-  EXPECTED_INTERVAL = 300  # 5 minutes in seconds
-  LEAD_TIME = 5            # Wake up 5s before expected arrival
-  TARGET_TIMEOUT_SEC = 25  # Request server wait timeout in seconds
   
   while True:
     try:
@@ -744,46 +740,52 @@ def backendMonitorAdaptive():
             time.sleep(10)
             continue
 
-      # Phase-lock: Sleep until near next expected arrival (if we have a baseline reading)
-      if last_entry_time > 0 and retry_count == 0:
-        now_datetime = getRtcDatetime()
-        now_local = utime.mktime((now_datetime[0], now_datetime[1], now_datetime[2], now_datetime[3], now_datetime[4], now_datetime[5], 0, 0)) + secondsDiff
-        time_since_last = now_local - last_entry_time
-        time_until_target = EXPECTED_INTERVAL - time_since_last - LEAD_TIME
-        if time_until_target > 0:
-          print(f"Next reading expected in {time_until_target + LEAD_TIME}s. Sleeping for {time_until_target}s...")
-          time.sleep(time_until_target)
-
       printTime((utime.time() - startTime), prefix="Uptime is")
-      print(f"Calling backend adaptively (lastid={lastid}, retry={retry_count})...")
       s = utime.time()
-      
-      current_timeout_sec = TARGET_TIMEOUT_SEC if retry_count == 0 else 15
-      backendResponseTimeout = current_timeout_sec + 5
-      
+
+      # Calculate time relative to the last known SGV reading
+      now_datetime = getRtcDatetime()
+      now = utime.mktime((now_datetime[0], now_datetime[1], now_datetime[2], now_datetime[3], now_datetime[4], now_datetime[5], 0, 0)) + secondsDiff
+      diff = max(0, now - last_entry_time) if last_entry_time > 0 else 0
+      time_until_target = EXPECTED_INTERVAL_SEC - diff
+
+      # Target window: if near 5-minute expected arrival (~5s before) or reading is overdue
+      in_arrival_window = (lastid != -1 and (time_until_target <= LEAD_TIME_SEC or diff >= EXPECTED_INTERVAL_SEC))
+
+      if in_arrival_window:
+        current_timeout_sec = TARGET_TIMEOUT_SEC if retry_count == 0 else 15
+        backend_url = f"{API_ENDPOINT}/entries.json?count=10&waitfornextid={lastid}&timeout={current_timeout_sec * 1000}"
+        backendResponseTimeout = current_timeout_sec + 5
+        print(f"Calling backend (arrival window, waitfornextid={lastid}, timeout={current_timeout_sec}s)...")
+      else:
+        backend_url = f"{API_ENDPOINT}/entries.json?count=10"
+        backendResponseTimeout = REQUEST_TIMEOUT_SEC
+        print(f"Calling backend (1-min dateStr refresh, retry={retry_count})...")
+
       backendResponse = requests2.get(
-        API_ENDPOINT + "/entries.json?count=10&waitfornextid=" + str(lastid) + "&timeout=" + str(current_timeout_sec * 1000), 
+        backend_url, 
         headers={"api-secret": API_TOKEN, "accept-language": LOCALE, "accept-charset": "ascii", "x-gms-tz": TIMEZONE},
         timeout=backendResponseTimeout
       )
       
       print("Response status code:", backendResponse.status_code)
       if backendResponse.status_code == 200:
+        retry_count = 0 # Reset retries on success
         raw_response = backendResponse.json()
         backendResponse.close()
         gc.collect()
         printTime((utime.time() - s), prefix="Received in")
         
         if raw_response and len(raw_response) > 0:
-          new_id = raw_response[0]["id"]
-          the_date = getDateTuple(raw_response[0]["date"])
+          response = raw_response
+          new_id = response[0]["id"]
+          is_new_entry = (new_id != lastid)
+          
+          the_date = getDateTuple(response[0]["date"])
           last_entry_time = utime.mktime(the_date)
           
-          if new_id != lastid or lastid == -1:
-            # New entry arrived
-            response = raw_response
+          if is_new_entry:
             lastid = new_id
-            retry_count = 0
             sgv = response[0]["sgv"]
             sgvDate = response[0]["date"]
             print("Sgv:", sgv)
@@ -792,102 +794,33 @@ def backendMonitorAdaptive():
             sgvDiff = 0
             if len(response) > 1: sgvDiff = sgv - response[1]["sgv"]
             print("Sgv diff from previous read:", sgvDiff)
-            drawScreen(response[0], clear=False)
             _thread.start_new_thread(persistEntries, ())
-            continue
-          else:
-            # Server timeout or returned same entry
-            print("No new entry in response yet.")
-            retry_count += 1
-        else:
-          retry_count += 1
+            
+          drawScreen(response[0], clear=False)
           
-      else:
-        raise ValueError("Backend response error code " + str(backendResponse.status_code))   
-        
-    except Exception as e:
-      if backendResponse != None: 
-        try: backendResponse.close()
-        except: pass
-      
-      retry_count += 1
-      sys.print_exception(e)
-      
-      if response == None: readResponseFile()
-      try: 
-        if response != None and len(response) >= 1: 
-          drawScreen(response[0], noNetwork=True, clear=False)
+          # Compute next sleep duration based on time until next 5-minute SGV reading
+          now_datetime = getRtcDatetime()
+          now = utime.mktime((now_datetime[0], now_datetime[1], now_datetime[2], now_datetime[3], now_datetime[4], now_datetime[5], 0, 0)) + secondsDiff
+          diff = max(0, now - last_entry_time)
+          time_until_target = EXPECTED_INTERVAL_SEC - diff
+          
+          if is_new_entry:
+            sleep_time = POLL_INTERVAL_SEC
+          elif time_until_target <= 0:
+            # Overdue reading, short pause before re-checking
+            sleep_time = 10
+          elif time_until_target <= (POLL_INTERVAL_SEC + LEAD_TIME_SEC):
+            # Wake up right before the expected reading arrives
+            sleep_time = max(5, time_until_target - LEAD_TIME_SEC)
+          else:
+            # Normal 1-minute dateStr interval
+            elapsed = utime.time() - s
+            sleep_time = max(5, POLL_INTERVAL_SEC - elapsed)
+            
+          print(f"Next check in {sleep_time}s (next SGV in ~{time_until_target}s)...")
+          time.sleep(sleep_time)
         else:
-          printCenteredText("Network error! Please wait.", mode, backgroundColor=RED, clear=True)
-      except Exception as e:
-        sys.print_exception(e)
-        saveError(e)
-      
-      if retry_count > 5: # Reset WiFi after ~5 consecutive failures
-        print("Too many failures. Resetting WiFi...")
-        nic = network.WLAN(network.STA_IF)
-        nic.disconnect()
-        nic.active(False)
-        time.sleep(1)
-        nic.active(True)
-        retry_count = 1
-        
-    # Short sleep if we are waiting for an overdue reading or backing off
-    wait_time = min(30, 5 * retry_count)
-    print(f"Retrying backend in {wait_time}s...")
-    time.sleep(wait_time)
-    print("---------------------------")
-
-def backendMonitorContinuous():
-  """
-  Legacy continuous long-polling poller: Constantly keeps a pending request open
-  to the backend with BACKEND_TIMEOUT_MS, immediately retrying whenever the
-  connection closes or times out.
-  """
-  global response, API_ENDPOINT, API_TOKEN, LOCALE, TIMEZONE, startTime, sgvDict, secondsDiff, backendResponse, mode, wifi_ssid, wifi_password
-  lastid = -1
-  retry_count = 0
-  
-  while True:
-    try:
-      # Check and reconnect WiFi if needed
-      if not network.WLAN(network.STA_IF).isconnected():
-        print("WiFi connection lost. Attempting to reconnect...")
-        if not connectToWifi(printText = False):
-            print("Reconnection failed. Retrying in 10s...")
-            time.sleep(10)
-            continue
-
-      printTime((utime.time() - startTime), prefix="Uptime is")
-      print(f"Calling backend (retry {retry_count})...")
-      s = utime.time()
-      
-      backendResponseTimeout = BACKEND_TIMEOUT_SEC + 5
-      
-      backendResponse = requests2.get(
-        API_ENDPOINT + "/entries.json?count=10&waitfornextid=" + str(lastid) + "&timeout=" + str(BACKEND_TIMEOUT_MS), 
-        headers={"api-secret": API_TOKEN, "accept-language": LOCALE, "accept-charset": "ascii", "x-gms-tz": TIMEZONE},
-        timeout=backendResponseTimeout
-      )
-      
-      print("Response status code:", backendResponse.status_code)
-      if backendResponse.status_code == 200:
-        retry_count = 0 # Reset retries on success
-        response = backendResponse.json()
-        backendResponse.close()
-        gc.collect()
-        printTime((utime.time() - s), prefix="Received in")
-        sgv = response[0]["sgv"]
-        sgvDate = response[0]["date"]
-        lastid = response[0]["id"]
-        print("Sgv:", sgv)
-        print("Direction:", response[0]["direction"])
-        print("Read: " + sgvDate + " (" + TIMEZONE + ")")
-        sgvDiff = 0
-        if len(response) > 1: sgvDiff = sgv - response[1]["sgv"]
-        print("Sgv diff from previous read:", sgvDiff)
-        drawScreen(response[0], clear=False)
-        _thread.start_new_thread(persistEntries, ())
+          time.sleep(POLL_INTERVAL_SEC)
       else:
         raise ValueError("Backend response error code " + str(backendResponse.status_code))   
         
@@ -896,7 +829,6 @@ def backendMonitorContinuous():
         try: backendResponse.close()
         except: pass
       
-      lastid = -1
       retry_count += 1
       sys.print_exception(e)
       
@@ -914,7 +846,7 @@ def backendMonitorContinuous():
       wait_time = min(60, 5 * (2**(retry_count-1)))
       print(f"Backend call error. Retry in {wait_time} secs ...")
       
-      if retry_count > 5: # Reset WiFi after ~10 consecutive failures
+      if retry_count > 5: # Reset WiFi after ~5 consecutive failures
         print("Too many failures. Resetting WiFi...")
         nic = network.WLAN(network.STA_IF)
         nic.disconnect()
@@ -925,12 +857,6 @@ def backendMonitorContinuous():
         
       time.sleep(wait_time)
     print("---------------------------")
-
-def backendMonitor():
-  """
-  Main background monitor entrypoint. Calls backendMonitorAdaptive() by default.
-  """
-  backendMonitorAdaptive()
 
 def setEmergencyrgbUnitColor(setBeepColorIndex, beepColor):
   global rgbUnit
