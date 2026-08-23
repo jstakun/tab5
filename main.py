@@ -555,6 +555,8 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     M5.Display.setTextSize(1)
     
     ly = y+f-100
+    M5.Display.setFont(M5.Display.FONTS.DejaVu40)
+    sgvLabelRight = x + w + M5.Display.textWidth(SGV_LABEL)
     if drawSgv or "sgvStr" not in prevStr:  
        printText(SGV_LABEL, x+w, ly, font=M5.Display.FONTS.DejaVu40)
     
@@ -619,7 +621,7 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     fh = M5.Display.fontHeight()
     drawDateStr = False
     if "dateStr" in prevStr and prevStr["dateStr"] != dateStr:
-       clear_x = max(0, lx - 20)
+       clear_x = sgvLabelRight + 10 #10 pixels right from SGV_LABEL
        clear_w = SCREEN_WIDTH - clear_x - 10
        M5.Display.fillRect(clear_x, ly - 5, clear_w, fh + 10, M5.Display.COLOR.BLACK)
        drawDateStr = True
