@@ -540,7 +540,8 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     w = M5.Display.textWidth(sgvStr) 
     f = M5.Display.fontHeight()
     y = int((SCREEN_HEIGHT - f) / 2) + 30
-    
+
+    #draw separator line
     if clear:
       M5.Display.drawLine(10, y, SCREEN_WIDTH-10, y, DARKGREY)
     
@@ -616,19 +617,49 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     textColor = DARKGREY
     if isOlderThan(sgvDateStr, 10, now): 
        textColor = RED
-    w = M5.Display.textWidth(dateStr)
+    w = int(max(280, M5.Display.textWidth(dateStr) if dateStr else 280) * 1.2)
     x = lx + int((SCREEN_WIDTH-lx-w)/2)
+    x = min(x, SCREEN_WIDTH - 10 - w)
     fh = M5.Display.fontHeight()
-    drawDateStr = False
-    if "dateStr" in prevStr and prevStr["dateStr"] != dateStr:
-       clear_x = sgvLabelRight + 10 #10 pixels right from SGV_LABEL
-       clear_w = SCREEN_WIDTH - clear_x - 10
-       M5.Display.fillRect(clear_x, ly - 5, clear_w, fh + 10, M5.Display.COLOR.BLACK)
-       drawDateStr = True
-    if drawDateStr or "dateStr" not in prevStr:  
-       printText(dateStr, x, ly, textColor=textColor)  
-    prevStr["dateStr"] = dateStr
 
+    try:
+       # Calculate elapsed minutes since sgvDateStr (0 to 5)
+       the_date = getDateTuple(sgvDateStr)
+       diff_sec = max(0, now - utime.mktime(the_date))
+       minutes_ago = int(diff_sec // 60)
+    except Exception:
+       minutes_ago = 0
+    active_lines = min(5, max(0, minutes_ago))
+
+    lineState = f"{active_lines}_{textColor}"
+    drawDateLines = False
+    
+    seg_h = 25
+    seg_y = ly + int((fh - seg_h) / 2)
+
+    if "dateStr" in prevStr and prevStr["dateStr"] != lineState:
+       clear_x = sgvLabelRight + 10 #10 pixels right from SGV_LABEL
+       clear_w = SCREEN_WIDTH - clear_x
+       clear_y = min(ly - 5, seg_y - 5)
+       clear_h = max(fh + 10, seg_h + 10)
+       M5.Display.fillRect(clear_x, clear_y, clear_w, clear_h, M5.Display.COLOR.BLACK)
+       drawDateLines = True
+
+    if drawDateLines or "dateStr" not in prevStr:
+       gap = 14
+       seg_w = int((w - 4 * gap) / 5)
+       outline_color = textColor if textColor == RED else DARKGREY
+       for i in range(5):
+          seg_x = x + i * (seg_w + gap)
+          if i < active_lines:
+             M5.Display.fillRect(seg_x, seg_y, seg_w, seg_h, textColor)
+          else:
+             # 2-pixel frame matching battery indicator frame style
+             M5.Display.drawRect(seg_x, seg_y, seg_w, seg_h, outline_color)
+             M5.Display.drawRect(seg_x + 1, seg_y + 1, seg_w - 2, seg_h - 2, outline_color)
+    prevStr["dateStr"] = lineState
+
+    #draw separator line
     y += f+55
     M5.Display.drawLine(10, y, SCREEN_WIDTH-10, y, DARKGREY)
     y += 10
