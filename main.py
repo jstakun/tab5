@@ -614,24 +614,33 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
 
     #draw dateStr
     M5.Display.setFont(M5.Display.FONTS.DejaVu40)
-    textColor = DARKGREY
-    if isOlderThan(sgvDateStr, 10, now): 
-       textColor = RED
     w = int(max(280, M5.Display.textWidth(dateStr) if dateStr else 280) * 1.2)
     x = lx + int((SCREEN_WIDTH-lx-w)/2)
     x = min(x, SCREEN_WIDTH - 10 - w)
     fh = M5.Display.fontHeight()
 
     try:
-       # Calculate elapsed minutes since sgvDateStr (0 to 5)
        the_date = getDateTuple(sgvDateStr)
        diff_sec = max(0, now - utime.mktime(the_date))
        minutes_ago = int(diff_sec // 60)
     except Exception:
        minutes_ago = 0
-    active_lines = min(5, max(0, minutes_ago))
 
-    lineState = f"{active_lines}_{textColor}"
+    # Multi-phase indicator:
+    # Phase 1 (0 to 5 mins): 1 line per min in DARKGREY (unfilled = DARKGREY frame)
+    # Phase 2 (5 to 10 mins): Overdue minutes overwrite segments in ORANGE (1 overdue min per line)
+    # Phase 3 (10 to 70 mins): 10-minute blocks in RED (unfilled = RED frame)
+    # Phase 4 (70+ mins): 5 empty RED frames
+    if minutes_ago < 5:
+       lineState = f"norm_{minutes_ago}"
+    elif minutes_ago < 10:
+       lineState = f"overdue_{minutes_ago}"
+    elif minutes_ago < MUCH_TOO_OLD_DATA:
+       red_blocks = min(5, minutes_ago // 10)
+       lineState = f"stale_{red_blocks}"
+    else:
+       lineState = "dead_0"
+
     drawDateLines = False
     
     seg_h = 25
@@ -648,15 +657,39 @@ def drawScreen(newestEntry, noNetwork=False, clear=True):
     if drawDateLines or "dateStr" not in prevStr:
        gap = 14
        seg_w = int((w - 4 * gap) / 5)
-       outline_color = textColor if textColor == RED else DARKGREY
-       for i in range(5):
-          seg_x = x + i * (seg_w + gap)
-          if i < active_lines:
-             M5.Display.fillRect(seg_x, seg_y, seg_w, seg_h, textColor)
-          else:
-             # 2-pixel frame matching battery indicator frame style
-             M5.Display.drawRect(seg_x, seg_y, seg_w, seg_h, outline_color)
-             M5.Display.drawRect(seg_x + 1, seg_y + 1, seg_w - 2, seg_h - 2, outline_color)
+
+       if minutes_ago < 5:
+          for i in range(5):
+             seg_x = x + i * (seg_w + gap)
+             if i < minutes_ago:
+                M5.Display.fillRect(seg_x, seg_y, seg_w, seg_h, DARKGREY)
+             else:
+                M5.Display.drawRect(seg_x, seg_y, seg_w, seg_h, DARKGREY)
+                M5.Display.drawRect(seg_x + 1, seg_y + 1, seg_w - 2, seg_h - 2, DARKGREY)
+       elif minutes_ago < 10:
+          overdue_mins = minutes_ago - 5
+          for i in range(5):
+             seg_x = x + i * (seg_w + gap)
+             if i < overdue_mins:
+                M5.Display.fillRect(seg_x, seg_y, seg_w, seg_h, ORANGE)
+             else:
+                M5.Display.fillRect(seg_x, seg_y, seg_w, seg_h, DARKGREY)
+       elif minutes_ago < MUCH_TOO_OLD_DATA:
+          red_blocks = min(5, minutes_ago // 10)
+          for i in range(5):
+             seg_x = x + i * (seg_w + gap)
+             if i < red_blocks:
+                M5.Display.fillRect(seg_x, seg_y, seg_w, seg_h, RED)
+             else:
+                M5.Display.drawRect(seg_x, seg_y, seg_w, seg_h, RED)
+                M5.Display.drawRect(seg_x + 1, seg_y + 1, seg_w - 2, seg_h - 2, RED)
+       else:
+          # After 70 mins (MUCH_TOO_OLD_DATA): 5 empty RED frames
+          for i in range(5):
+             seg_x = x + i * (seg_w + gap)
+             M5.Display.drawRect(seg_x, seg_y, seg_w, seg_h, RED)
+             M5.Display.drawRect(seg_x + 1, seg_y + 1, seg_w - 2, seg_h - 2, RED)
+
     prevStr["dateStr"] = lineState
 
     #draw separator line
